@@ -1,0 +1,10 @@
+[package]
+name = "hooksmith"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+
+[lib]
+name = "hooksmith"
+path = "src/lib.rs"
