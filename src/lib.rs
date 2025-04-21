@@ -12,9 +12,6 @@ use serde::Deserialize;
 /// Root directory of a Git repository.
 pub const GIT_ROOT: &str = ".git";
 
-/// Hooks directory within a Git repository.
-pub const GIT_HOOKS: &str = "hooks";
-
 /// # `Cli`
 /// Command line interface structure for hooksmith.
 #[derive(Parser)]
@@ -50,11 +47,23 @@ pub struct Hook {
 /// # `get_git_hooks_path`
 /// Get the path to the Git hooks directory.
 ///
+/// ## Panics
+/// * If the `git` command fails to execute
+///
 /// ## Returns
 /// * `PathBuf` - Path to the Git hooks directory
 #[must_use]
 pub fn get_git_hooks_path() -> PathBuf {
-    Path::new(GIT_ROOT).join(GIT_HOOKS)
+    // get the output of the `git rev-parse --git-path hooks` command
+    let output = std::process::Command::new("git")
+        .arg("rev-parse")
+        .arg("--git-path")
+        .arg("hooks")
+        .output()
+        .expect("Failed to execute git command");
+
+    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    PathBuf::from(path)
 }
 
 /// # `check_for_git_hooks`
