@@ -4,6 +4,7 @@ use clap::Subcommand;
 
 use crate::{Config, check_for_git_hooks, get_git_hooks_path};
 
+/// Commands enum for hooksmith CLI.
 #[derive(Subcommand, Debug)]
 pub enum Command {
     /// Install all hooks listed in the config file

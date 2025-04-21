@@ -9,9 +9,14 @@ use clap::Parser;
 use commands::{Command, install_hooks};
 use serde::Deserialize;
 
+/// Root directory of a Git repository.
 pub const GIT_ROOT: &str = ".git";
+
+/// Hooks directory within a Git repository.
 pub const GIT_HOOKS: &str = "hooks";
 
+/// # `Cli`
+/// Command line interface structure for hooksmith.
 #[derive(Parser)]
 #[command(about = "A trivial Git hooks utility.")]
 #[command(author = "@TomPlanche")]
@@ -29,12 +34,14 @@ pub struct Cli {
     pub verbose: bool,
 }
 
+/// Configuration structure for hooksmith.
 #[derive(Deserialize)]
 pub struct Config {
     #[serde(flatten)]
     hooks: std::collections::HashMap<String, Hook>,
 }
 
+/// Hook structure for hooksmith.
 #[derive(Deserialize)]
 pub struct Hook {
     commands: Vec<String>,
