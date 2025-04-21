@@ -9,7 +9,7 @@ license = "Apache-2.0 OR MIT"
 name = "hooksmith"
 readme = "README.md"
 repository = "https://github.com/TomPlanche/hooksmith"
-version = "0.2.1"
+version = "1.0.0"
 
 [dependencies]
 clap = { version = "4.5.37", features = ["derive"] }

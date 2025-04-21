@@ -1,10 +1,29 @@
+<pre align="center">
+                ,"(                             .
+               ////\                           /
+              (//////--,,,,,_____            ,"
+            _;"""----/////_______;,,        //
+__________;"o,-------------......"""""`'-._/(
+      ""'==._.__,;;;;"""           ____,.-.==
+             "-.:______,...;---""/"   "    \(
+                 '-._      `-._("           \\
+                     '-._                     '._
+</pre>
+
 <h2 align="center">
-    Hooksmith, a simple Git hooks management tool.
+    Hooksmith, a trivial Git hooks management tool.
 </h2>
+
+<p align="center">
+    <a href="https://crates.io/crates/hooksmith">
+        <img alt="Crates.io" src="https://img.shields.io/crates/v/hooksmith.svg">
+    </a>
+</p>
 
 ## Features
 
-- Run hooks locally without triggering them via Git.
+- ⚙️ Automate the hooks installation process with `build.rs` files.
+- 💻 Run hooks locally without triggering them via Git.
 
 ## Installation
 

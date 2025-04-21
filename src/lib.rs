@@ -6,7 +6,7 @@ use std::{
 };
 
 use clap::Parser;
-use commands::Command;
+use commands::{Command, install_hooks};
 use serde::Deserialize;
 
 pub const GIT_ROOT: &str = ".git";
@@ -82,4 +82,18 @@ pub fn read_config(config_path: &Path) -> Config {
     let config_string = fs::read_to_string(config_path).expect("Failed to read config file");
 
     serde_yaml::from_str(&config_string).expect("Failed to parse config file")
+}
+
+/// # `init`
+/// Initialize Hooksmith by reading the configuration file and installing hooks.
+///
+/// ## Arguments
+/// * `config_path` - Path to the configuration file
+///
+/// ## Returns
+/// * `Config` - Parsed configuration file
+pub fn init(config_path: &Path) {
+    let config = read_config(config_path);
+
+    install_hooks(&config);
 }
