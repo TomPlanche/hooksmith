@@ -45,8 +45,12 @@ cargo add --build hooksmith
 Then create a `build.rs` file:
 
 ```rust
+use std::path::Path;
+
 pub fn main() {
-    hooksmith::init();
+    let config_path = Path::new("hooksmith.yaml");
+
+    hooksmith::init(&config_path);
 }
 ```
 
