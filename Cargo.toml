@@ -5,6 +5,7 @@ description = "Trivial git hook management tool"
 edition = "2024"
 homepage = "https://github.com/TomPlanche/hooksmith"
 keywords = ["cli", "git", "git-hooks", "rust"]
+license = "GNU General Public License v3.0"
 name = "hooksmith"
 readme = "README.md"
 repository = "https://github.com/TomPlanche/hooksmith"
