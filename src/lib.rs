@@ -1,6 +1,9 @@
 pub mod commands;
 
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 use clap::Parser;
 use commands::Command;
@@ -37,6 +40,16 @@ pub struct Hook {
     commands: Vec<String>,
 }
 
+/// # `get_git_hooks_path`
+/// Get the path to the Git hooks directory.
+///
+/// ## Returns
+/// * `PathBuf` - Path to the Git hooks directory
+#[must_use]
+pub fn get_git_hooks_path() -> PathBuf {
+    Path::new(GIT_ROOT).join(GIT_HOOKS)
+}
+
 /// # `check_for_git_hooks`
 /// Check if the current directory is a Git repository and if it has hooks.
 ///
@@ -45,9 +58,10 @@ pub struct Hook {
 ///
 /// ## Returns
 /// * `bool` - True if the directory is a Git repository with hooks, false otherwise
+#[must_use]
 pub fn check_for_git_hooks() -> bool {
     let git_root = Path::new(GIT_ROOT);
-    let git_hooks = git_root.join(GIT_HOOKS);
+    let git_hooks = get_git_hooks_path();
 
     git_root.exists() && git_hooks.exists()
 }
@@ -58,8 +72,12 @@ pub fn check_for_git_hooks() -> bool {
 /// ## Arguments
 /// * `config_path` - Path to the configuration file
 ///
+/// ## Panics
+/// * If the configuration file cannot be read or parsed
+///
 /// ## Returns
 /// * `Config` - Parsed configuration file
+#[must_use]
 pub fn read_config(config_path: &Path) -> Config {
     let config_string = fs::read_to_string(config_path).expect("Failed to read config file");
 
