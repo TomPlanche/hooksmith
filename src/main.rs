@@ -3,7 +3,7 @@ use std::path::Path;
 use clap::Parser;
 use hooksmith::{
     Cli, GIT_ROOT,
-    commands::{Command, install_hooks, run_hook, uninstall_given_hook, uninstall_hooks},
+    commands::{Command, install_hooks, run_hook, uninstall_given_hook, uninstall_hooks, compare_hooks},
     read_config,
 };
 
@@ -43,6 +43,9 @@ fn main() {
         }
         Command::Run { hook_name } => {
             run_hook(&config, &hook_name, cli.dry_run, cli.verbose);
+        }
+        Command::Compare => {
+            compare_hooks(&config, cli.verbose);
         }
     }
 }

@@ -25,6 +25,10 @@ pub enum Command {
         #[arg(default_value = None)]
         hook_name: Option<String>,
     },
+
+    /// Compare installed hooks with configuration file
+    #[command(about = "Compare installed hooks with configuration file")]
+    Compare,
 }
 
 /// # `install_hooks`
@@ -296,5 +300,54 @@ pub fn uninstall_hooks(config: &Config, dry_run: bool, verbose: bool) {
             "🏁 Uninstallation completed: {} hooks removed",
             config.hooks.len()
         );
+    }
+}
+
+/// # `compare_hooks`
+/// Compare installed hooks with the configuration file.
+///
+/// ## Arguments
+/// * `config` - A reference to the configuration.
+/// * `verbose` - Whether to print verbose output.
+pub fn compare_hooks(config: &Config, verbose: bool) {
+    let git_hooks_path = get_git_hooks_path();
+    let mut differences_found = false;
+
+    if verbose {
+        println!("🔍 Comparing installed hooks with configuration file...");
+    }
+
+    // Check for hooks in config but not installed
+    for hook_name in config.hooks.keys() {
+        let hook_path = git_hooks_path.join(hook_name);
+        if !hook_path.exists() {
+            if !differences_found {
+                println!("\n❌ Differences found:");
+                differences_found = true;
+            }
+            println!("  - Hook '{hook_name}' is in config but not installed");
+        }
+    }
+
+    // Check for installed hooks not in config
+    if let Ok(entries) = std::fs::read_dir(&git_hooks_path) {
+        for entry in entries.flatten() {
+            if let Ok(file_type) = entry.file_type() {
+                if file_type.is_file() {
+                    let hook_name = entry.file_name().to_string_lossy().to_string();
+                    if !config.hooks.contains_key(&hook_name) {
+                        if !differences_found {
+                            println!("\n❌ Differences found:");
+                            differences_found = true;
+                        }
+                        println!("  - Hook '{hook_name}' is installed but not in config");
+                    }
+                }
+            }
+        }
+    }
+
+    if !differences_found {
+        println!("✅ All hooks match the configuration file");
     }
 }
