@@ -27,8 +27,13 @@ pub struct Cli {
     #[arg(short, long, default_value_t = String::from("hooksmith.yaml"))]
     pub config_path: String,
 
+    /// Whether to print verbose output
     #[arg(short, long, default_value_t = false)]
     pub verbose: bool,
+
+    /// Whether to perform a dry run
+    #[arg(long, default_value_t = false)]
+    pub dry_run: bool,
 }
 
 /// Configuration structure for hooksmith.
@@ -110,6 +115,8 @@ pub fn read_config(config_path: &Path) -> Config {
 /// * `Config` - Parsed configuration file
 pub fn init(config_path: &Path) {
     let config = read_config(config_path);
+    let dry_run = false;
+    let verbose = false;
 
-    install_hooks(&config);
+    install_hooks(&config, dry_run, verbose);
 }

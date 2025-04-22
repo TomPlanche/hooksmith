@@ -26,30 +26,23 @@ fn main() {
 
     let config = read_config(config_path);
 
+    if cli.dry_run {
+        println!("🔄 DRY RUN MODE - No commands will be executed\n");
+    }
+
     match cli.command {
-        Command::Install => install_hooks(&config),
+        Command::Install => install_hooks(&config, cli.dry_run, cli.verbose),
         Command::Uninstall { hook_name } => {
             if hook_name.is_none() {
-                if cli.verbose {
-                    println!("Uninstalling all hooks");
-                }
-
-                uninstall_hooks(&config);
+                uninstall_hooks(&config, cli.dry_run, cli.verbose);
             } else {
                 let hook_name = hook_name.unwrap();
-                if cli.verbose {
-                    println!("Uninstalling hook: {hook_name}");
-                }
 
-                uninstall_given_hook(&config, &hook_name);
+                uninstall_given_hook(&config, &hook_name, cli.dry_run, cli.verbose);
             }
         }
         Command::Run { hook_name } => {
-            if cli.verbose {
-                println!("Running hook: {hook_name}");
-            }
-
-            run_hook(&config, &hook_name);
+            run_hook(&config, &hook_name, cli.dry_run, cli.verbose);
         }
     }
 }

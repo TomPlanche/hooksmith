@@ -24,6 +24,7 @@ __________;"o,-------------......"""""`'-._/(
 
 - ⚙️ Automate the hooks installation process with `build.rs` files.
 - 💻 Run hooks locally without triggering them via Git.
+- ⚙️ Dry-run mode to preview changes without applying them.
 
 ## Installation
 
@@ -75,3 +76,5 @@ pre-push:
 - `hooksmith install`: Install the hooks from the configuration file.
 - `hooksmith uninstall [hook_name]`: Uninstall a hook (all if no name is provided).
 - `hooksmith run <hook_name>`: Run a hook.
+
+All commands can be preceded by the `--dry-run` flag to preview changes without applying them.

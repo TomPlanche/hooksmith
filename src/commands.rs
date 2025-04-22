@@ -35,15 +35,21 @@ pub enum Command {
 ///
 /// ## Arguments
 /// * `config` - Parsed configuration file
-pub fn install_hooks(config: &Config) {
+/// * `dry_run` - Whether to run the hook in dry run mode
+/// * `verbose` - Whether to print verbose output
+pub fn install_hooks(config: &Config, dry_run: bool, verbose: bool) {
     let git_hooks_path = get_git_hooks_path();
 
     if !check_for_git_hooks() {
         fs::create_dir_all(git_hooks_path).expect("Failed to create .git/hooks directory");
     }
 
+    if verbose {
+        println!("🪝 Installing hooks...");
+    }
+
     for hook_name in config.hooks.keys() {
-        install_hook(hook_name);
+        install_hook(hook_name, dry_run, verbose);
     }
 }
 
@@ -56,11 +62,25 @@ pub fn install_hooks(config: &Config) {
 ///
 /// ## Arguments
 /// * `hook_name` - Name of the hook to install
-pub fn install_hook(hook_name: &str) {
+/// * `dry_run` - Whether to run the hook in dry run mode
+/// * `verbose` - Whether to print verbose output
+pub fn install_hook(hook_name: &str, dry_run: bool, verbose: bool) {
+    if verbose && !dry_run {
+        println!("🪝 Installing {hook_name} hook...");
+    }
+
     let git_hooks_path = get_git_hooks_path();
 
     if !git_hooks_path.exists() {
-        fs::create_dir_all(&git_hooks_path).expect("Failed to create .git/hooks directory");
+        if dry_run {
+            println!("🪝 Skipping creation of .git/hooks directory in dry run mode");
+        } else {
+            if verbose {
+                println!("  - Creating .git/hooks directory...");
+            }
+
+            fs::create_dir_all(&git_hooks_path).expect("Failed to create .git/hooks directory");
+        }
     }
 
     let hook_path = format!("{}/{}", git_hooks_path.to_str().unwrap(), hook_name);
@@ -79,21 +99,71 @@ else
   exec hooksmith run {hook_name}
 fi"
     );
-    fs::write(&hook_path, hook_content)
-        .unwrap_or_else(|_| panic!("Failed to write hook script to {hook_path}"));
 
-    // Linux only
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
+    if dry_run {
+        println!("🪝 Skipping installation of {hook_name} hook in dry run mode");
+    } else {
+        fs::write(&hook_path, hook_content)
+            .unwrap_or_else(|_| panic!("Failed to write hook script to {hook_path}"));
 
-        let mut permissions = fs::metadata(&hook_path)
-            .expect("Failed to get file permissions")
-            .permissions();
+        if verbose {
+            println!("  - Installing {hook_name} file...");
+        }
 
-        permissions.set_mode(0o755);
+        // Linux only
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
 
-        fs::set_permissions(&hook_path, permissions).expect("Failed to set file permissions");
+            let mut permissions = fs::metadata(&hook_path)
+                .expect("Failed to get file permissions")
+                .permissions();
+
+            permissions.set_mode(0o755);
+
+            fs::set_permissions(&hook_path, permissions).expect("Failed to set file permissions");
+
+            if verbose {
+                println!("  - Setting file permissions...");
+            }
+        }
+    }
+
+    if verbose {
+        println!("  ✅ Installed {hook_name} file");
+    }
+}
+
+/// # `execute_command`
+/// Executes a command.
+///
+/// ## Panics
+/// * If a command cannot be executed
+///
+/// # Arguments
+/// * `command` - The command to execute.
+/// * `dry_run` - Whether to run the command in dry run mode.
+fn execute_command(command: &str, dry_run: bool) -> std::io::Result<std::process::ExitStatus> {
+    if dry_run {
+        println!("🔍 Would execute: {command}");
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::ExitStatusExt;
+
+            Ok(ExitStatusExt::from_raw(0))
+        }
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::ExitStatusExt;
+
+            Ok(ExitStatusExt::from_raw(0))
+        }
+    } else {
+        std::process::Command::new("sh")
+            .arg("-c")
+            .arg(command)
+            .status()
     }
 }
 
@@ -106,23 +176,55 @@ fi"
 /// # Arguments
 /// * `config` - A reference to the configuration.
 /// * `hook_name` - The name of the hook to run.
-pub fn run_hook(config: &Config, hook_name: &str) {
+/// * `dry_run` - Whether to run the hook in dry run mode.
+/// * `verbose` - Whether to print verbose output.
+pub fn run_hook(config: &Config, hook_name: &str, dry_run: bool, verbose: bool) {
     if let Some(hook) = config.hooks.get(hook_name) {
-        for command_str in &hook.commands {
-            println!("Running command: {command_str}");
+        if verbose && !dry_run {
+            println!("📋 Running Hook: {hook_name}");
+        }
 
-            let status = std::process::Command::new("sh")
-                .arg("-c")
-                .arg(command_str)
-                .status()
-                .expect("Failed to execute command");
-
-            if !status.success() {
-                let status_code = status.code().unwrap_or(1);
-
-                eprintln!("Command `{command_str}` failed with status code {status_code}",);
-                std::process::exit(status_code);
+        for (idx, command_str) in hook.commands.iter().enumerate() {
+            if dry_run {
+                println!("Step {} of {}:", idx + 1, hook.commands.len());
+                println!("  Command: {command_str}");
+                println!(
+                    "  Working directory: {:?}",
+                    std::env::current_dir().unwrap()
+                );
+                println!();
+                continue;
             }
+
+            if verbose && !dry_run {
+                println!("  - Running command: {command_str}");
+            }
+
+            match execute_command(command_str, dry_run) {
+                Ok(status) if status.success() => {
+                    if verbose && !dry_run {
+                        println!("\n  ✅ Command completed successfully");
+                    }
+                }
+                Ok(status) => {
+                    let code = status.code().unwrap_or(1);
+                    eprintln!("❌ Command failed with status code {code}");
+
+                    std::process::exit(code);
+                }
+                Err(e) => {
+                    eprintln!("❌ Failed to execute command: {e}");
+
+                    std::process::exit(1);
+                }
+            }
+        }
+
+        if dry_run {
+            println!(
+                "🏁 Dry run completed. {} commands would be executed",
+                hook.commands.len()
+            );
         }
     } else {
         let possible_hooks = config.hooks.keys().collect::<Vec<_>>();
@@ -143,17 +245,25 @@ pub fn run_hook(config: &Config, hook_name: &str) {
 /// # Arguments
 /// * `config` - A reference to the configuration.
 /// * `hook_name` - The name of the hook to run.
-pub fn uninstall_given_hook(config: &Config, hook_name: &str) {
+/// * `dry_run` - Whether to perform a dry run.
+/// * `verbose` - Whether to print verbose output.
+pub fn uninstall_given_hook(config: &Config, hook_name: &str, dry_run: bool, verbose: bool) {
     if config.hooks.contains_key(hook_name) {
-        println!("Uninstalling hook {hook_name}");
+        if verbose && !dry_run {
+            println!("🗑️ Uninstalling hook: {hook_name}");
+        }
 
         let hook_path = get_git_hooks_path().join(hook_name);
 
         if Path::new(&hook_path).exists() {
-            fs::remove_file(&hook_path)
-                .unwrap_or_else(|_| panic!("Failed to remove hook: {hook_name}"));
+            if dry_run {
+                println!("  🚧 Dry run: Would remove hook file: {hook_path:?}");
+            } else {
+                fs::remove_file(&hook_path)
+                    .unwrap_or_else(|_| panic!("Failed to remove hook: {hook_name}"));
+            }
         } else {
-            println!("No hook found for {hook_name}");
+            println!("  ⚠️ No hook file found for {hook_name}");
         }
     } else {
         let possible_hooks = config.hooks.keys().collect::<Vec<_>>();
@@ -170,10 +280,21 @@ pub fn uninstall_given_hook(config: &Config, hook_name: &str) {
 ///
 /// # Arguments
 /// * `config` - A reference to the configuration.
-pub fn uninstall_hooks(config: &Config) {
-    for hook_name in config.hooks.keys() {
-        uninstall_given_hook(config, hook_name);
+/// * `dry_run` - Whether to perform a dry run.
+/// * `verbose` - Whether to print verbose output.
+pub fn uninstall_hooks(config: &Config, dry_run: bool, verbose: bool) {
+    if verbose && !dry_run {
+        println!("🗑️ Uninstalling all hooks");
+    }
 
-        println!("Removed hook {hook_name}");
+    for hook_name in config.hooks.keys() {
+        uninstall_given_hook(config, hook_name, dry_run, verbose);
+    }
+
+    if verbose && !dry_run {
+        println!(
+            "🏁 Uninstallation completed: {} hooks removed",
+            config.hooks.len()
+        );
     }
 }
