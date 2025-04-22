@@ -19,3 +19,8 @@ serde_yaml = "0.9.34"
 [lib]
 name = "hooksmith"
 path = "src/lib.rs"
+
+[dev-dependencies]
+assert_fs = "1.1.2"
+predicates = "3.1.3"
+tempfile = "3.19.1"

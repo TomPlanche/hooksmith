@@ -120,3 +120,37 @@ pub fn init(config_path: &Path) {
 
     install_hooks(&config, dry_run, verbose);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::File;
+    use std::io::Write;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_read_config() {
+        // Create a temporary config file
+        let temp_dir = tempdir().unwrap();
+        let config_path = temp_dir.path().join("hooksmith.yaml");
+        let mut config_file = File::create(&config_path).unwrap();
+
+        let config_content = r#"
+pre-commit:
+  commands:
+    - "echo 'Running pre-commit hook'"
+"#;
+        config_file.write_all(config_content.as_bytes()).unwrap();
+
+        // Read and parse the config
+        let config = read_config(&config_path);
+
+        // Verify the config was parsed correctly
+        assert!(config.hooks.contains_key("pre-commit"));
+        assert_eq!(config.hooks["pre-commit"].commands.len(), 1);
+        assert_eq!(
+            config.hooks["pre-commit"].commands[0],
+            "echo 'Running pre-commit hook'"
+        );
+    }
+}
