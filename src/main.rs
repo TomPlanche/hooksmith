@@ -3,14 +3,16 @@ use std::path::Path;
 use clap::Parser;
 use hooksmith::{
     Cli, GIT_ROOT,
-    commands::{Command, install_hooks, run_hook, uninstall_given_hook, uninstall_hooks, compare_hooks},
+    commands::{
+        Command, compare_hooks, install_hooks, run_hook, uninstall_given_hook, uninstall_hooks,
+    },
     read_config,
 };
 
 fn main() {
     if !Path::new(GIT_ROOT).exists() {
         eprintln!(
-            "Error: .git directory not found. Ensure you're at the root of a Git repository."
+            "Error: .git directory (or file for submodules) not found. Ensure you're in a Git repository or submodule."
         );
         std::process::exit(1);
     }
