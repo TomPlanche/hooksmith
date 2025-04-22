@@ -69,3 +69,9 @@ pre-push:
     - cargo test
 
 ```
+
+### Commands
+
+- `hooksmith install`: Install the hooks from the configuration file.
+- `hooksmith uninstall [hook_name]`: Uninstall a hook (all if no name is provided).
+- `hooksmith run <hook_name>`: Run a hook.
