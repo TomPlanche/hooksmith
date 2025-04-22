@@ -18,6 +18,9 @@ __________;"o,-------------......"""""`'-._/(
     <a href="https://crates.io/crates/hooksmith">
         <img alt="Crates.io" src="https://img.shields.io/crates/v/hooksmith.svg">
     </a>
+    <a href="https://docs.rs/hooksmith">
+        <img alt="Docs.rs" src="https://img.shields.io/docsrs/hooksmith/latest">
+    </a>
 </p>
 
 ## Features
