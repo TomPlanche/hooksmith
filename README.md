@@ -10,18 +10,12 @@ __________;"o,-------------......"""""`'-._/(
                      '-._                     '._
 </pre>
 
-<h2 align="center">
+<h1 align="center">
     Hooksmith, a trivial Git hooks management tool.
-</h2>
+</h1>
 
-<p align="center">
-    <a href="https://crates.io/crates/hooksmith">
-        <img alt="Crates.io" src="https://img.shields.io/crates/v/hooksmith.svg">
-    </a>
-    <a href="https://docs.rs/hooksmith">
-        <img alt="Docs.rs" src="https://img.shields.io/docsrs/hooksmith/latest">
-    </a>
-</p>
+[![Crates.io](https://img.shields.io/crates/v/hooksmith.svg)](https://crates.io/crates/hooksmith)
+[![Docs.rs](https://img.shields.io/docsrs/hooksmith/latest)](https://docs.rs/hooksmith)
 
 ## Features
 
