@@ -9,7 +9,7 @@ use hooksmith::{
     read_config,
 };
 
-fn main() {
+fn main() -> std::io::Result<()> {
     if !Path::new(GIT_ROOT).exists() {
         eprintln!(
             "Error: .git directory (or file for submodules) not found. Ensure you're in a Git repository or submodule."
@@ -26,7 +26,7 @@ fn main() {
         std::process::exit(1);
     }
 
-    let config = read_config(config_path);
+    let config = read_config(config_path)?;
 
     if cli.dry_run {
         println!("🔄 DRY RUN MODE - No commands will be executed\n");
@@ -36,18 +36,13 @@ fn main() {
         Command::Install => install_hooks(&config, cli.dry_run, cli.verbose),
         Command::Uninstall { hook_name } => {
             if hook_name.is_none() {
-                uninstall_hooks(&config, cli.dry_run, cli.verbose);
+                uninstall_hooks(&config, cli.dry_run, cli.verbose)
             } else {
                 let hook_name = hook_name.unwrap();
-
-                uninstall_given_hook(&config, &hook_name, cli.dry_run, cli.verbose);
+                uninstall_given_hook(&config, &hook_name, cli.dry_run, cli.verbose)
             }
         }
-        Command::Run { hook_name } => {
-            run_hook(&config, &hook_name, cli.dry_run, cli.verbose);
-        }
-        Command::Compare => {
-            compare_hooks(&config, cli.verbose);
-        }
+        Command::Run { hook_name } => run_hook(&config, &hook_name, cli.dry_run, cli.verbose),
+        Command::Compare => compare_hooks(&config, cli.verbose),
     }
 }
