@@ -42,7 +42,7 @@ pub enum Command {
 /// * `dry_run` - Whether to run the hook in dry run mode
 /// * `verbose` - Whether to print verbose output
 pub fn install_hooks(config: &Config, dry_run: bool, verbose: bool) -> std::io::Result<()> {
-    let git_hooks_path = get_git_hooks_path()?; // Unwrap early
+    let git_hooks_path = get_git_hooks_path()?;
 
     if !check_for_git_hooks() {
         fs::create_dir_all(&git_hooks_path)?;
@@ -75,7 +75,7 @@ pub fn install_hook(hook_name: &str, dry_run: bool, verbose: bool) -> std::io::R
         println!("🪝 Installing {hook_name} hook...");
     }
 
-    let git_hooks_path = get_git_hooks_path()?; // Unwrap early
+    let git_hooks_path = get_git_hooks_path()?;
 
     if !git_hooks_path.exists() {
         if dry_run {
@@ -275,7 +275,7 @@ pub fn uninstall_given_hook(
             println!("🗑️ Uninstalling hook: {hook_name}");
         }
 
-        let git_hooks_path = get_git_hooks_path()?; // Unwrap early
+        let git_hooks_path = get_git_hooks_path()?;
         let hook_path = git_hooks_path.join(hook_name);
 
         if hook_path.exists() {
@@ -337,7 +337,7 @@ pub fn uninstall_hooks(config: &Config, dry_run: bool, verbose: bool) -> std::io
 /// * `config` - A reference to the configuration.
 /// * `verbose` - Whether to print verbose output.
 pub fn compare_hooks(config: &Config, verbose: bool) -> std::io::Result<()> {
-    let git_hooks_path = get_git_hooks_path()?; // Unwrap early
+    let git_hooks_path = get_git_hooks_path()?;
     let mut differences_found = false;
 
     if verbose {

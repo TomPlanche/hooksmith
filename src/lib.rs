@@ -132,7 +132,7 @@ mod tests {
 
     #[test]
     fn test_read_config() -> std::io::Result<()> {
-        let config_path = Path::new("tests/fixtures/hooksmith.yaml");
+        let config_path = Path::new("hooksmith.yaml");
         let config = read_config(config_path)?;
 
         assert!(config.hooks.contains_key("pre-commit"));
