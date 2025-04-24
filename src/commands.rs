@@ -56,7 +56,7 @@ pub enum Command {
         hook_name: Option<String>,
     },
 
-    /// Compare installed hooks with configuration file
+    /// Compare installed hooks with the configuration file
     #[command(about = "Compare installed hooks with configuration file")]
     Compare,
 
@@ -394,7 +394,7 @@ pub fn compare_hooks(config: &Config, verbose: bool) -> std::io::Result<()> {
     }
 
     // Check for installed hooks not in config
-    if let Ok(entries) = std::fs::read_dir(&git_hooks_path) {
+    if let Ok(entries) = fs::read_dir(&git_hooks_path) {
         for entry in entries.flatten() {
             if let Ok(file_type) = entry.file_type() {
                 if file_type.is_file() {
@@ -424,10 +424,10 @@ pub fn compare_hooks(config: &Config, verbose: bool) -> std::io::Result<()> {
 }
 
 /// # `validate_hooks`
-/// Validate that hooks in configuration file are standard Git hooks.
+/// Validate that hooks in the configuration file are standard Git hooks.
 ///
 /// ## Errors
-/// None, I just return Ok(()) in order to aggregate all calls in a `match` statement in the main function.
+/// None, I just return Ok(()) to aggregate all calls in a `match` statement in the main function.
 ///
 /// ## Arguments
 /// * `config` - A reference to the configuration.
@@ -462,4 +462,115 @@ pub fn validate_hooks(config: &Config, verbose: bool) -> std::io::Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{Hook, read_config};
+
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    fn setup_test_env() -> TempDir {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create git structure
+        std::process::Command::new("git")
+            .arg("init")
+            .current_dir(&temp_dir)
+            .output()
+            .unwrap();
+
+        // Create a simple config file
+        let file_contents = r#"
+pre-commit:
+    commands:
+        - cargo fmt --all -- --check
+
+pre-push:
+    commands:
+        - cargo test
+"#;
+        let config_file = temp_dir.path().join("hooksmith.yaml");
+        fs::write(&config_file, file_contents).unwrap();
+
+        temp_dir
+    }
+
+    #[test]
+    fn test_install_hook() {
+        let temp_dir = setup_test_env();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Run the function
+        let result = install_hook("pre-commit", false, false);
+
+        assert!(result.is_ok());
+
+        // Verify hook was created
+        let hook_path = temp_dir
+            .path()
+            .join(".git")
+            .join("hooks")
+            .join("pre-commit");
+
+        assert!(hook_path.exists());
+
+        // Check content
+        let content = fs::read_to_string(hook_path).unwrap();
+        assert!(content.contains("exec hooksmith run pre-commit"));
+    }
+
+    #[test]
+    fn test_execute_command() {
+        let result = execute_command("echo 'test command'", false);
+        assert!(result.is_ok());
+        assert!(result.unwrap().success());
+
+        // Test dry run
+        let result = execute_command("invalid_command_that_should_fail", true);
+        assert!(result.is_ok());
+        assert!(result.unwrap().success()); // Should succeed in dry run mode
+    }
+
+    #[test]
+    fn test_run_hook() {
+        let temp_dir = setup_test_env();
+
+        let config_path = temp_dir.path().join("hooksmith.yaml");
+        let config = read_config(&config_path);
+
+        assert!(config.is_ok());
+        let config = config.unwrap();
+
+        // Test with dry run
+        let result = run_hook(&config, "pre-commit", true, false);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_hooks() {
+        let temp_dir = setup_test_env();
+
+        let config_path = temp_dir.path().join("hooksmith.yaml");
+        let config = read_config(&config_path);
+
+        assert!(config.is_ok());
+        let config = config.unwrap();
+
+        let result = validate_hooks(&config, false);
+        assert!(result.is_ok());
+
+        // Create config with invalid hook
+        let mut hooks = std::collections::HashMap::new();
+        let invalid_hook = Hook {
+            commands: vec![String::from("echo 'test'")],
+        };
+        hooks.insert(String::from("not-a-real-hook"), invalid_hook);
+        let invalid_config = Config { hooks };
+
+        let result = validate_hooks(&invalid_config, false);
+        assert!(result.is_ok()); // Function just prints errors, doesn't return them
+    }
 }

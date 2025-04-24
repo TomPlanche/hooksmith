@@ -127,15 +127,55 @@ pub fn init(config_path: &Path) -> std::io::Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use tempfile::TempDir;
+
     use super::*;
 
+    /// # `create_test_config`
+    /// Helper function to create a test configuration file.
+    ///
+    /// # Returns
+    /// * `(TempDir, PathBuf)` - Temporary directory and path to the configuration file
+    fn create_test_config() -> (TempDir, PathBuf) {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("hooksmith.yaml");
+
+        // Create a simple test config
+        let config_content = r#"
+            pre-commit:
+                commands:
+                    - "echo 'Running pre-commit hook'"
+                    - "cargo fmt --check"
+            pre-push:
+                commands:
+                    - "cargo test"
+            "#;
+
+        fs::write(&config_path, config_content).unwrap();
+        (temp_dir, config_path)
+    }
+
     #[test]
-    fn test_read_config() -> std::io::Result<()> {
-        let config_path = Path::new("hooksmith.yaml");
-        let config = read_config(config_path)?;
+    fn test_read_config() {
+        let (_temp_dir, config_path) = create_test_config();
+        let config = read_config(&config_path).unwrap();
 
         assert!(config.hooks.contains_key("pre-commit"));
         assert!(config.hooks.contains_key("pre-push"));
-        Ok(())
+
+        let pre_commit = &config.hooks["pre-commit"];
+        assert_eq!(pre_commit.commands.len(), 2);
+        assert_eq!(pre_commit.commands[0], "echo 'Running pre-commit hook'");
+    }
+
+    #[test]
+    fn test_read_config_invalid_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("invalid.yaml");
+
+        fs::write(&config_path, "invalid: yaml: content:").unwrap();
+
+        let result = read_config(&config_path);
+        assert!(result.is_err());
     }
 }
