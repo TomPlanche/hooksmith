@@ -5,6 +5,7 @@ use hooksmith::{
     Cli, GIT_ROOT,
     commands::{
         Command, compare_hooks, install_hooks, run_hook, uninstall_given_hook, uninstall_hooks,
+        validate_hooks,
     },
     read_config,
 };
@@ -44,5 +45,6 @@ fn main() -> std::io::Result<()> {
         }
         Command::Run { hook_name } => run_hook(&config, &hook_name, cli.dry_run, cli.verbose),
         Command::Compare => compare_hooks(&config, cli.verbose),
+        Command::Validate => validate_hooks(&config, cli.verbose),
     }
 }

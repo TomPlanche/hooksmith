@@ -58,7 +58,6 @@ pub struct Hook {
 /// ## Returns
 /// * `PathBuf` - Path to the Git hooks directory
 pub fn get_git_hooks_path() -> std::io::Result<PathBuf> {
-    // get the output of the `git rev-parse --git-path hooks` command
     let output = std::process::Command::new("git")
         .arg("rev-parse")
         .arg("--git-path")

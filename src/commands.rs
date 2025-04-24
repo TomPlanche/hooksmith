@@ -1,8 +1,38 @@
+use clap::Subcommand;
 use std::fs;
 
-use clap::Subcommand;
-
 use crate::{Config, check_for_git_hooks, get_git_hooks_path};
+
+const GIT_HOOKS: [&str; 28] = [
+    "applypatch-msg",
+    "pre-applypatch",
+    "post-applypatch",
+    "pre-commit",
+    "pre-merge-commit",
+    "prepare-commit-msg",
+    "commit-msg",
+    "post-commit",
+    "pre-rebase",
+    "post-checkout",
+    "post-merge",
+    "pre-push",
+    "pre-receive",
+    "update",
+    "proc-receive",
+    "post-receive",
+    "post-update",
+    "reference-transaction",
+    "push-to-checkout",
+    "pre-auto-gc",
+    "post-rewrite",
+    "sendemail-validate",
+    "fsmonitor-watchman",
+    "p4-changelist",
+    "p4-prepare-changelist",
+    "p4-post-changelist",
+    "p4-pre-submit",
+    "post-index-change",
+];
 
 /// Commands enum for hooksmith CLI.
 #[derive(Subcommand, Debug)]
@@ -29,6 +59,10 @@ pub enum Command {
     /// Compare installed hooks with configuration file
     #[command(about = "Compare installed hooks with configuration file")]
     Compare,
+
+    /// Validate hooks configuration
+    #[command(about = "Validate hooks in configuration file against standard Git hooks")]
+    Validate,
 }
 
 /// # `install_hooks`
@@ -204,7 +238,7 @@ pub fn run_hook(
                 println!("  Command: {command_str}");
 
                 if let Ok(dir) = current_dir {
-                    println!("  Working directory: {dir:?}");
+                    println!("  Working directory: {}", dir.display());
                 }
 
                 println!();
@@ -280,7 +314,10 @@ pub fn uninstall_given_hook(
 
         if hook_path.exists() {
             if dry_run {
-                println!("  🚧 Dry run: Would remove hook file: {hook_path:?}");
+                println!(
+                    "  🚧 Dry run: Would remove hook file: {}",
+                    hook_path.display()
+                );
             } else {
                 fs::remove_file(&hook_path)?;
             }
@@ -362,6 +399,11 @@ pub fn compare_hooks(config: &Config, verbose: bool) -> std::io::Result<()> {
             if let Ok(file_type) = entry.file_type() {
                 if file_type.is_file() {
                     let hook_name = entry.file_name().to_string_lossy().to_string();
+
+                    if hook_name.ends_with(".sample") {
+                        continue;
+                    }
+
                     if !config.hooks.contains_key(&hook_name) {
                         if !differences_found {
                             println!("\n❌ Differences found:");
@@ -376,6 +418,47 @@ pub fn compare_hooks(config: &Config, verbose: bool) -> std::io::Result<()> {
 
     if !differences_found {
         println!("✅ All hooks match the configuration file");
+    }
+
+    Ok(())
+}
+
+/// # `validate_hooks`
+/// Validate that hooks in configuration file are standard Git hooks.
+///
+/// ## Errors
+/// None, I just return Ok(()) in order to aggregate all calls in a `match` statement in the main function.
+///
+/// ## Arguments
+/// * `config` - A reference to the configuration.
+/// * `verbose` - Whether to print verbose output.
+pub fn validate_hooks(config: &Config, verbose: bool) -> std::io::Result<()> {
+    if verbose {
+        println!("🔍 Validating hooks in configuration file...");
+    }
+
+    let mut invalid_hooks = Vec::new();
+    let mut valid_hooks = 0;
+
+    for hook_name in config.hooks.keys() {
+        if GIT_HOOKS.contains(&hook_name.as_str()) {
+            valid_hooks += 1;
+            if verbose {
+                println!("  ✅ Hook '{hook_name}' is valid");
+            }
+        } else {
+            invalid_hooks.push(hook_name.clone());
+        }
+    }
+
+    if invalid_hooks.is_empty() {
+        println!("✅ All hooks in configuration are valid Git hooks");
+        println!("  - Found {valid_hooks} valid hooks");
+    } else {
+        println!("❌ Found {} invalid hook names:", invalid_hooks.len());
+        for hook_name in &invalid_hooks {
+            println!("  - '{hook_name}' is not a recognized Git hook");
+        }
     }
 
     Ok(())
