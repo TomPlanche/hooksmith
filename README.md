@@ -69,12 +69,13 @@ pre-push:
 ```
 
 ### Commands
-All commands can be preceded by:
-- `--dry-run` flag to preview changes without applying them.
-- `--verbose` flag to print more information.
 
 - `hooksmith compare`: Compare installed hooks with the configuration file.
 - `hooksmith install`: Install the hooks from the configuration file.
 - `hooksmith run <hook_name>`: Run a hook.
 - `hooksmith uninstall [hook_name]`: Uninstall a hook (all if no name is provided).
 - `hooksmith validate`: Validate hooks in the configuration file against standard Git hooks.
+
+All commands can be preceded by:
+    - `--dry-run` flag to preview changes without applying them.
+    - `--verbose` flag to print more information.
