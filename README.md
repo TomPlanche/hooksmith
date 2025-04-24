@@ -77,5 +77,6 @@ pre-push:
 - `hooksmith validate`: Validate hooks in the configuration file against standard Git hooks.
 
 All commands can be preceded by:
-    - `--dry-run` flag to preview changes without applying them.
-    - `--verbose` flag to print more information.
+
+- `--dry-run` flag to preview changes without applying them.
+- `--verbose` flag to print more information.
