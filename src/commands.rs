@@ -483,7 +483,7 @@ mod tests {
             .unwrap();
 
         // Create a simple config file
-        let file_contents = r#"
+        let file_contents = r"
 pre-commit:
     commands:
         - cargo fmt --all -- --check
@@ -491,7 +491,7 @@ pre-commit:
 pre-push:
     commands:
         - cargo test
-"#;
+";
         let config_file = temp_dir.path().join("hooksmith.yaml");
         fs::write(&config_file, file_contents).unwrap();
 
