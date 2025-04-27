@@ -5,15 +5,18 @@ use hooksmith::{
     Cli, GIT_ROOT,
     commands::{
         Command, compare_hooks, install_hooks, run_hook, uninstall_given_hook, uninstall_hooks,
-        validate_hooks,
+        validate_hooks, validate_hooks_for_install,
     },
     read_config,
+    utils::print_error,
 };
 
 fn main() -> std::io::Result<()> {
     if !Path::new(GIT_ROOT).exists() {
-        eprintln!(
-            "Error: .git directory (or file for submodules) not found. Ensure you're in a Git repository or submodule."
+        print_error(
+            "Git repository not found",
+            ".git directory (or file for submodules) not found.",
+            "Please ensure you're in a Git repository or submodule.",
         );
         std::process::exit(1);
     }
@@ -23,7 +26,12 @@ fn main() -> std::io::Result<()> {
     let config_path = Path::new(&cli.config_path);
 
     if !config_path.exists() {
-        eprintln!("Error: Config file not found at {}", config_path.display());
+        print_error(
+            "Configuration file not found",
+            &format!("Could not find config file at: {}", config_path.display()),
+            "Please create a configuration file or specify its location with --config-path.",
+        );
+
         std::process::exit(1);
     }
 
@@ -34,7 +42,11 @@ fn main() -> std::io::Result<()> {
     }
 
     match cli.command {
-        Command::Install => install_hooks(&config, cli.dry_run, cli.verbose),
+        Command::Install => {
+            validate_hooks_for_install(&config, cli.verbose)?;
+
+            install_hooks(&config, cli.dry_run, cli.verbose)
+        }
         Command::Uninstall { hook_name } => {
             if hook_name.is_none() {
                 uninstall_hooks(&config, cli.dry_run, cli.verbose)

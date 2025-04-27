@@ -1,7 +1,10 @@
 use clap::Subcommand;
 use std::fs;
 
-use crate::{Config, check_for_git_hooks, get_git_hooks_path};
+use crate::{
+    Config, check_for_git_hooks, get_git_hooks_path,
+    utils::{format_list, print_error, print_success, print_warning},
+};
 
 const GIT_HOOKS: [&str; 28] = [
     "applypatch-msg",
@@ -65,6 +68,42 @@ pub enum Command {
     Validate,
 }
 
+/// # `validate_hooks_for_install`
+/// Validate hooks configuration before installation.
+///
+/// ## Errors
+/// * `std::io::Error` - If any invalid hook names are found.
+///
+/// ## Arguments
+/// * `config` - The configuration file containing the hooks to validate.
+/// * `verbose` - Whether to print verbose output.
+pub fn validate_hooks_for_install(config: &Config, verbose: bool) -> std::io::Result<()> {
+    if verbose {
+        println!("🔍 Validating hooks before installation...");
+    }
+
+    let mut invalid_hooks = Vec::new();
+    for hook_name in config.hooks.keys() {
+        if !GIT_HOOKS.contains(&hook_name.as_str()) {
+            invalid_hooks.push(hook_name.clone());
+        }
+    }
+
+    if !invalid_hooks.is_empty() {
+        let error_message = format!(
+            "Invalid hook names detected\n\nThe following hooks are not recognized by Git:\n{}\n\nPlease check your configuration file and use only valid Git hook names.",
+            format_list(&invalid_hooks)
+        );
+
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            error_message,
+        ));
+    }
+
+    Ok(())
+}
+
 /// # `install_hooks`
 /// Install all hooks listed in the config file.
 ///
@@ -76,6 +115,8 @@ pub enum Command {
 /// * `dry_run` - Whether to run the hook in dry run mode
 /// * `verbose` - Whether to print verbose output
 pub fn install_hooks(config: &Config, dry_run: bool, verbose: bool) -> std::io::Result<()> {
+    validate_hooks(config, verbose)?;
+
     let git_hooks_path = get_git_hooks_path()?;
 
     if !check_for_git_hooks() {
@@ -257,12 +298,20 @@ pub fn run_hook(
                 }
                 Ok(status) => {
                     let code = status.code().unwrap_or(1);
-                    eprintln!("❌ Command failed with status code {code}");
+                    print_error(
+                        "Command failed",
+                        &format!("Hook '{hook_name}' command failed with status code {code}"),
+                        "Please check your command and try again.",
+                    );
 
                     std::process::exit(code);
                 }
                 Err(e) => {
-                    eprintln!("❌ Failed to execute command: {e}");
+                    print_error(
+                        "Failed to execute command",
+                        &format!("Error: {e}"),
+                        "Please ensure the command exists and is executable.",
+                    );
 
                     std::process::exit(1);
                 }
@@ -278,10 +327,15 @@ pub fn run_hook(
 
         Ok(())
     } else {
-        let possible_hooks = config.hooks.keys().collect::<Vec<_>>();
+        let formatted_hooks = format_list(&config.hooks.keys().collect::<Vec<_>>());
 
-        eprintln!("No commands defined for hook '{hook_name}'");
-        eprintln!("Possible hooks: {possible_hooks:?}");
+        print_error(
+            "Hook not found",
+            &format!("No commands defined for hook '{hook_name}'"),
+            &format!(
+                "Available hooks:\n{formatted_hooks}\n\nPlease check your configuration file."
+            ),
+        );
 
         std::process::exit(1);
     }
@@ -452,13 +506,18 @@ pub fn validate_hooks(config: &Config, verbose: bool) -> std::io::Result<()> {
     }
 
     if invalid_hooks.is_empty() {
-        println!("✅ All hooks in configuration are valid Git hooks");
-        println!("  - Found {valid_hooks} valid hooks");
+        print_success(
+            "All hooks are valid",
+            &format!("Found {valid_hooks} valid Git hooks in your configuration."),
+        );
     } else {
-        println!("❌ Found {} invalid hook names:", invalid_hooks.len());
-        for hook_name in &invalid_hooks {
-            println!("  - '{hook_name}' is not a recognized Git hook");
-        }
+        print_warning(
+            "Invalid hooks detected",
+            &format!(
+                "The following hooks are not recognized by Git:\n{}\n\nPlease use only valid Git hook names in your configuration.",
+                format_list(&invalid_hooks)
+            ),
+        );
     }
 
     Ok(())
