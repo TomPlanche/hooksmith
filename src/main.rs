@@ -15,14 +15,13 @@ fn main() -> std::io::Result<()> {
     }
 
     let cli = Cli::parse();
-
     let config_path = Path::new(&cli.config_path);
 
     if !config_path.exists() {
         print_error(
             "Configuration file not found",
             &format!("Could not find config file at: {}", config_path.display()),
-            "Please create a configuration file or specify its location with --config-path.",
+            "The default configuration file is set to `./hooksmith.toml`. Please create a configuration file or specify its location with --config-path.",
         );
 
         std::process::exit(1);
@@ -41,6 +40,7 @@ fn main() -> std::io::Result<()> {
                 hs.uninstall_hooks()
             } else {
                 let hook_name = hook_name.unwrap();
+
                 hs.uninstall_given_hook(&hook_name)
             }
         }

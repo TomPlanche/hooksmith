@@ -63,33 +63,56 @@ impl Hooksmith {
         })
     }
 
-    /// # `validate_hooks_for_install`
-    /// Validate hooks configuration before installation.
+    /// # `compare_hooks`
+    /// Compare installed hooks with the configuration file.
     ///
     /// ## Errors
-    /// * `std::io::Error` - If any invalid hook names are found.
-    pub fn validate_hooks_for_install(&self) -> std::io::Result<()> {
+    /// * If there is an error reading the git hooks directory.
+    pub fn compare_hooks(&self) -> std::io::Result<()> {
+        let git_hooks_path = get_git_hooks_path()?;
+        let mut differences_found = false;
+
         if self.verbose {
-            println!("🔍 Validating hooks before installation...");
+            println!("🔍 Comparing installed hooks with configuration file...");
         }
 
-        let mut invalid_hooks = Vec::new();
+        // Check for hooks in config but not installed
         for hook_name in self.config.hooks.keys() {
-            if !GIT_HOOKS.contains(&hook_name.as_str()) {
-                invalid_hooks.push(hook_name.clone());
+            let hook_path = git_hooks_path.join(hook_name);
+            if !hook_path.exists() {
+                if !differences_found {
+                    println!("\n❌ Differences found:");
+                    differences_found = true;
+                }
+                println!("  - Hook '{hook_name}' is in config but not installed");
             }
         }
 
-        if !invalid_hooks.is_empty() {
-            let error_message = format!(
-                "Invalid hook names detected\n\nThe following hooks are not recognized by Git:\n{}\n\nPlease check your configuration file and use only valid Git hook names.",
-                format_list(&invalid_hooks)
-            );
+        // Check for installed hooks not in config
+        if let Ok(entries) = fs::read_dir(&git_hooks_path) {
+            for entry in entries.flatten() {
+                if let Ok(file_type) = entry.file_type() {
+                    if file_type.is_file() {
+                        let hook_name = entry.file_name().to_string_lossy().to_string();
 
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                error_message,
-            ));
+                        if hook_name.ends_with(".sample") {
+                            continue;
+                        }
+
+                        if !self.config.hooks.contains_key(&hook_name) {
+                            if !differences_found {
+                                println!("\n❌ Differences found:");
+                                differences_found = true;
+                            }
+                            println!("  - Hook '{hook_name}' is installed but not in config");
+                        }
+                    }
+                }
+            }
+        }
+
+        if !differences_found {
+            println!("✅ All hooks match the configuration file");
         }
 
         Ok(())
@@ -172,7 +195,7 @@ impl Hooksmith {
         Ok(())
     }
 
-    /// Install all hooks listed in the config file.
+    /// # `install_hooks`
     ///
     /// ## Errors
     /// * If the `.git/hooks` directory cannot be created
@@ -196,61 +219,6 @@ impl Hooksmith {
 
         for hook_name in self.config.hooks.keys() {
             self.install_hook(hook_name)?;
-        }
-
-        Ok(())
-    }
-
-    /// # `compare_hooks`
-    /// Compare installed hooks with the configuration file.
-    ///
-    /// ## Errors
-    /// * If there is an error reading the git hooks directory.
-    pub fn compare_hooks(&self) -> std::io::Result<()> {
-        let git_hooks_path = get_git_hooks_path()?;
-        let mut differences_found = false;
-
-        if self.verbose {
-            println!("🔍 Comparing installed hooks with configuration file...");
-        }
-
-        // Check for hooks in config but not installed
-        for hook_name in self.config.hooks.keys() {
-            let hook_path = git_hooks_path.join(hook_name);
-            if !hook_path.exists() {
-                if !differences_found {
-                    println!("\n❌ Differences found:");
-                    differences_found = true;
-                }
-                println!("  - Hook '{hook_name}' is in config but not installed");
-            }
-        }
-
-        // Check for installed hooks not in config
-        if let Ok(entries) = fs::read_dir(&git_hooks_path) {
-            for entry in entries.flatten() {
-                if let Ok(file_type) = entry.file_type() {
-                    if file_type.is_file() {
-                        let hook_name = entry.file_name().to_string_lossy().to_string();
-
-                        if hook_name.ends_with(".sample") {
-                            continue;
-                        }
-
-                        if !self.config.hooks.contains_key(&hook_name) {
-                            if !differences_found {
-                                println!("\n❌ Differences found:");
-                                differences_found = true;
-                            }
-                            println!("  - Hook '{hook_name}' is installed but not in config");
-                        }
-                    }
-                }
-            }
-        }
-
-        if !differences_found {
-            println!("✅ All hooks match the configuration file");
         }
 
         Ok(())
@@ -465,6 +433,38 @@ impl Hooksmith {
                     format_list(&invalid_hooks)
                 ),
             );
+        }
+
+        Ok(())
+    }
+
+    /// # `validate_hooks_for_install`
+    /// Validate hooks configuration before installation.
+    ///
+    /// ## Errors
+    /// * `std::io::Error` - If any invalid hook names are found.
+    pub fn validate_hooks_for_install(&self) -> std::io::Result<()> {
+        if self.verbose {
+            println!("🔍 Validating hooks before installation...");
+        }
+
+        let mut invalid_hooks = Vec::new();
+        for hook_name in self.config.hooks.keys() {
+            if !GIT_HOOKS.contains(&hook_name.as_str()) {
+                invalid_hooks.push(hook_name.clone());
+            }
+        }
+
+        if !invalid_hooks.is_empty() {
+            let error_message = format!(
+                "Invalid hook names detected\n\nThe following hooks are not recognized by Git:\n{}\n\nPlease check your configuration file and use only valid Git hook names.",
+                format_list(&invalid_hooks)
+            );
+
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                error_message,
+            ));
         }
 
         Ok(())
