@@ -1,15 +1,8 @@
 use std::path::Path;
 
 use clap::Parser;
-use hooksmith::{
-    Cli, GIT_ROOT,
-    commands::{
-        Command, compare_hooks, install_hooks, run_hook, uninstall_given_hook, uninstall_hooks,
-        validate_hooks, validate_hooks_for_install,
-    },
-    read_config,
-    utils::print_error,
-};
+use hooksmith::hooksmith::Hooksmith;
+use hooksmith::{Cli, Command, GIT_ROOT, utils::print_error};
 
 fn main() -> std::io::Result<()> {
     if !Path::new(GIT_ROOT).exists() {
@@ -35,28 +28,24 @@ fn main() -> std::io::Result<()> {
         std::process::exit(1);
     }
 
-    let config = read_config(config_path)?;
-
-    if cli.dry_run {
-        println!("🔄 DRY RUN MODE - No commands will be executed\n");
-    }
+    let hs = Hooksmith::new_from_config(config_path, cli.dry_run, cli.verbose)?;
 
     match cli.command {
         Command::Install => {
-            validate_hooks_for_install(&config, cli.verbose)?;
+            hs.validate_hooks_for_install()?;
 
-            install_hooks(&config, cli.dry_run, cli.verbose)
+            hs.install_hooks()
         }
         Command::Uninstall { hook_name } => {
             if hook_name.is_none() {
-                uninstall_hooks(&config, cli.dry_run, cli.verbose)
+                hs.uninstall_hooks()
             } else {
                 let hook_name = hook_name.unwrap();
-                uninstall_given_hook(&config, &hook_name, cli.dry_run, cli.verbose)
+                hs.uninstall_given_hook(&hook_name)
             }
         }
-        Command::Run { hook_name } => run_hook(&config, &hook_name, cli.dry_run, cli.verbose),
-        Command::Compare => compare_hooks(&config, cli.verbose),
-        Command::Validate => validate_hooks(&config, cli.verbose),
+        Command::Run { hook_name } => hs.run_hook(&hook_name),
+        Command::Compare => hs.compare_hooks(),
+        Command::Validate => hs.validate_hooks(),
     }
 }

@@ -1,17 +1,46 @@
-pub mod commands;
+pub mod git_related;
+pub mod hooksmith;
 pub mod utils;
 
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
+use std::path::Path;
 
-use clap::Parser;
-use commands::Command;
+use clap::{Parser, Subcommand};
+use hooksmith::Hooksmith;
 use serde::Deserialize;
 
 /// Root directory of a Git repository.
 pub const GIT_ROOT: &str = ".git";
+
+/// Commands enum for hooksmith CLI.
+#[derive(Subcommand, Debug)]
+pub enum Command {
+    /// Install all hooks listed in the config file
+    #[command(about = "Install all hooks listed in the config file")]
+    Install,
+
+    /// Run a specific hook
+    #[command(about = "Run a specific hook")]
+    Run {
+        /// Name of the hook to run
+        hook_name: String,
+    },
+
+    /// Uninstall hooks
+    #[command(about = "Uninstall hooks")]
+    Uninstall {
+        /// Optional name of the hook to uninstall. If not provided, all hooks will be uninstalled.
+        #[arg(default_value = None)]
+        hook_name: Option<String>,
+    },
+
+    /// Compare installed hooks with the configuration file
+    #[command(about = "Compare installed hooks with configuration file")]
+    Compare,
+
+    /// Validate hooks configuration
+    #[command(about = "Validate hooks in configuration file against standard Git hooks")]
+    Validate,
+}
 
 /// # `Cli`
 /// Command line interface structure for hooksmith.
@@ -50,61 +79,6 @@ pub struct Hook {
     commands: Vec<String>,
 }
 
-/// # `get_git_hooks_path`
-/// Get the path to the Git hooks directory.
-///
-/// ## Errors
-/// * If the `git` command fails to execute
-///
-/// ## Returns
-/// * `PathBuf` - Path to the Git hooks directory
-pub fn get_git_hooks_path() -> std::io::Result<PathBuf> {
-    let output = std::process::Command::new("git")
-        .arg("rev-parse")
-        .arg("--git-path")
-        .arg("hooks")
-        .output()?;
-
-    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-
-    Ok(PathBuf::from(path))
-}
-
-/// # `check_for_git_hooks`
-/// Check if the current directory is a Git repository and if it has hooks.
-///
-/// ## Arguments
-/// * `path` - Path to the directory to check
-///
-/// ## Returns
-/// * `bool` - True if the directory is a Git repository with hooks, false otherwise
-#[must_use]
-pub fn check_for_git_hooks() -> bool {
-    let git_root = Path::new(GIT_ROOT);
-    let git_hooks = get_git_hooks_path().ok();
-
-    git_root.exists() && git_hooks.is_some_and(|path| path.exists())
-}
-
-/// # `read_config`
-/// Read the configuration file and parse it into a Config struct.
-///
-/// ## Arguments
-/// * `config_path` - Path to the configuration file
-///
-/// ## Errors
-/// * If the configuration file cannot be read or parsed
-///
-/// ## Returns
-/// * `Config` - Parsed configuration file
-pub fn read_config(config_path: &Path) -> std::io::Result<Config> {
-    let config_string = fs::read_to_string(config_path)?;
-    let config = serde_yaml::from_str(&config_string)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-
-    Ok(config)
-}
-
 /// # `init`
 /// Initialize Hooksmith by reading the configuration file and installing hooks.
 ///
@@ -117,66 +91,35 @@ pub fn read_config(config_path: &Path) -> std::io::Result<Config> {
 /// ## Returns
 /// * `Config` - Parsed configuration file
 pub fn init(config_path: &Path) -> std::io::Result<()> {
-    let config = read_config(config_path)?;
-    let dry_run = false;
-    let verbose = false;
+    let hs = Hooksmith::new_from_config(config_path, false, false)?;
 
-    commands::install_hooks(&config, dry_run, verbose)?;
+    hs.install_hooks()?;
 
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use tempfile::TempDir;
-
     use super::*;
 
-    /// # `create_test_config`
-    /// Helper function to create a test configuration file.
-    ///
-    /// # Returns
-    /// * `(TempDir, PathBuf)` - Temporary directory and path to the configuration file
-    fn create_test_config() -> (TempDir, PathBuf) {
-        let temp_dir = TempDir::new().unwrap();
-        let config_path = temp_dir.path().join("hooksmith.yaml");
-
-        // Create a simple test config
-        let config_content = r#"
-            pre-commit:
-                commands:
-                    - "echo 'Running pre-commit hook'"
-                    - "cargo fmt --check"
-            pre-push:
-                commands:
-                    - "cargo test"
-            "#;
-
-        fs::write(&config_path, config_content).unwrap();
-        (temp_dir, config_path)
-    }
-
     #[test]
-    fn test_read_config() {
-        let (_temp_dir, config_path) = create_test_config();
-        let config = read_config(&config_path).unwrap();
+    fn test_cli_parsing() {
+        // Test basic command parsing
+        let args = vec!["hooksmith", "install"];
+        let cli = Cli::parse_from(args);
 
-        assert!(config.hooks.contains_key("pre-commit"));
-        assert!(config.hooks.contains_key("pre-push"));
+        match cli.command {
+            Command::Install => {}
+            _ => panic!("Expected Install command"),
+        }
 
-        let pre_commit = &config.hooks["pre-commit"];
-        assert_eq!(pre_commit.commands.len(), 2);
-        assert_eq!(pre_commit.commands[0], "echo 'Running pre-commit hook'");
-    }
+        // Test with arguments
+        let args = vec!["hooksmith", "run", "pre-commit"];
+        let cli = Cli::parse_from(args);
 
-    #[test]
-    fn test_read_config_invalid_file() {
-        let temp_dir = TempDir::new().unwrap();
-        let config_path = temp_dir.path().join("invalid.yaml");
-
-        fs::write(&config_path, "invalid: yaml: content:").unwrap();
-
-        let result = read_config(&config_path);
-        assert!(result.is_err());
+        match cli.command {
+            Command::Run { hook_name } => assert_eq!(hook_name, "pre-commit"),
+            _ => panic!("Expected Run command with hook_name=pre-commit"),
+        }
     }
 }
