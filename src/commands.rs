@@ -528,7 +528,8 @@ pub fn validate_hooks(config: &Config, verbose: bool) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Hook, read_config};
+    use crate::{Cli, Hook, read_config};
+    use clap::Parser;
     use std::{error::Error, fs};
     use tempfile::TempDir;
 
@@ -562,6 +563,35 @@ pre-push:
         fs::write(&config_file, file_contents)?;
 
         Ok(temp_dir)
+    }
+
+    #[test]
+    fn test_validate_hooks_for_install_invalid() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("invalid.yaml");
+
+        // Create config with invalid hook
+        fs::write(
+            &config_path,
+            "non-existent-hook:\n  commands:\n    - echo 'invalid'",
+        )
+        .unwrap();
+        let config = read_config(&config_path).unwrap();
+
+        let result = validate_hooks_for_install(&config, false);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_empty_commands_list() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("empty_commands.yaml");
+
+        fs::write(&config_path, "pre-commit:\n  commands: []").unwrap();
+        let config = read_config(&config_path).unwrap();
+
+        let result = run_hook(&config, "pre-commit", false, false);
+        assert!(result.is_ok()); // Should handle empty command lists gracefully
     }
 
     #[test]
@@ -643,5 +673,26 @@ pre-push:
         validate_hooks(&invalid_config, false)?;
 
         Ok(())
+    }
+
+    #[test]
+    fn test_cli_parsing() {
+        // Test basic command parsing
+        let args = vec!["hooksmith", "install"];
+        let cli = Cli::parse_from(args);
+
+        match cli.command {
+            Command::Install => {}
+            _ => panic!("Expected Install command"),
+        }
+
+        // Test with arguments
+        let args = vec!["hooksmith", "run", "pre-commit"];
+        let cli = Cli::parse_from(args);
+
+        match cli.command {
+            Command::Run { hook_name } => assert_eq!(hook_name, "pre-commit"),
+            _ => panic!("Expected Run command with hook_name=pre-commit"),
+        }
     }
 }
