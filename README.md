@@ -1,3 +1,5 @@
+# 🪝 Hooksmith
+
 <pre align="center">
                 ,"(                             .
                ////\                           /
@@ -10,73 +12,182 @@ __________;"o,-------------......"""""`'-._/(
                      '-._                     '._
 </pre>
 
-<h1 align="center">
-    Hooksmith, a trivial Git hooks management tool.
-</h1>
+<h1 align="center">Git Hook Management Made Simple</h1>
 
-[![Crates.io](https://img.shields.io/crates/v/hooksmith.svg)](https://crates.io/crates/hooksmith)
-[![Docs.rs](https://img.shields.io/docsrs/hooksmith/latest)](https://docs.rs/hooksmith)
+<p align="center">
+  <a href="https://crates.io/crates/hooksmith"><img src="https://img.shields.io/crates/v/hooksmith.svg" alt="Crates.io Version"></a>
+  <a href="https://docs.rs/hooksmith"><img src="https://img.shields.io/docsrs/hooksmith/latest" alt="Documentation"></a>
+  <a href="https://github.com/TomPlanche/hooksmith/blob/main/LICENSE"><img src="https://img.shields.io/crates/l/hooksmith" alt="License"></a>
+  <a href="https://github.com/TomPlanche/hooksmith/actions/workflows/rust.yaml"><img src="https://github.com/TomPlanche/hooksmith/actions/workflows/rust.yaml/badge.svg" alt="Build Status"></a>
+</p>
 
-## Features
+**Hooksmith** is a lightweight, easy-to-use tool that simplifies Git hook management. Define your hooks in a simple YAML file and let Hooksmith handle the rest.
 
-- ⚙️ Automate the hooks installation process with `build.rs` files.
-- 💻 Run hooks locally without triggering them via Git.
-- ⚙️ Dry-run mode to preview changes without applying them.
+## 📋 Table of Contents
 
-## Installation
+- [✨ Features](#-features)
+- [⚡ Why Hooksmith?](#-why-hooksmith)
+- [🔧 Installation](#-installation)
+- [🚀 Quick Start](#-quick-start)
+- [📖 Usage](#-usage)
+- [📚 Command Reference](#-command-reference)
+- [🤝 Contributing](#-contributing)
+- [📄 License](#-license)
 
-### With Cargo
-You can install it using `cargo`:
+## ✨ Features
 
-```sh
+- **⚙️ Automatic Installation** - Set up hooks through your build scripts with `build.rs`
+- **🧪 Local Testing** - Run hooks manually without triggering Git events
+- **🔍 Dry Run Mode** - Preview what would happen without making changes
+- **✅ Hook Validation** - Ensure your hooks comply with Git standards
+- **📝 Simple Configuration** - Define all your hooks in a clean YAML format
+
+## ⚡ Why Hooksmith?
+
+- **Minimal Dependencies** - Lightweight with only essential dependencies
+- **Rust Powered** - Fast, reliable, and type-safe
+- **Team Friendly** - Version control your hook configurations
+- **Seamless Integration** - Works naturally with your Git workflow
+- **Low Learning Curve** - Simple commands and clear documentation
+
+## 🔧 Installation
+
+### Using Cargo
+
+```bash
 cargo install hooksmith
 ```
 
-### Build Dependency
+### As a Build Dependency
 
-You can add it as a build dependency:
+Add to your `Cargo.toml`:
 
-```sh
-cargo add --build hooksmith
+```toml
+[build-dependencies]
+hooksmith = "1.4.3"
 ```
 
-Then create a `build.rs` file:
+Create a `build.rs` file:
 
 ```rust
 use std::path::Path;
 
-pub fn main() {
+fn main() {
     let config_path = Path::new("hooksmith.yaml");
-
     hooksmith::init(&config_path);
 }
 ```
 
-## Usage
+> 💡 **Note**: Hooksmith includes shell completions for Fish. After installation, they become available automatically.
 
-Create a configuration file named `monk.yaml` in your project root:
+## 🚀 Quick Start
+
+1. Create a `hooksmith.yaml` file in your project root:
 
 ```yaml
 pre-commit:
   commands:
     - cargo fmt --all -- --check
-    - cargo clippy --workspace --release --all-targets --all-features -- --deny warnings
+    - cargo clippy -- --deny warnings
 
 pre-push:
   commands:
     - cargo test
-
 ```
 
-### Commands
+2. Install the hooks:
 
-- `hooksmith compare`: Compare installed hooks with the configuration file.
-- `hooksmith install`: Install the hooks from the configuration file.
-- `hooksmith run <hook_name>`: Run a hook.
-- `hooksmith uninstall [hook_name]`: Uninstall a hook (all if no name is provided).
-- `hooksmith validate`: Validate hooks in the configuration file against standard Git hooks.
+```bash
+hooksmith install
+```
 
-All commands can be preceded by:
+That's it! Your Git hooks are now ready to use.
 
-- `--dry-run` flag to preview changes without applying them.
-- `--verbose` flag to print more information.
+## 📖 Usage
+
+### Configuration File
+
+Hooksmith uses a YAML configuration file (default: `hooksmith.yaml`) to define your hooks:
+
+```yaml
+# Format and lint code before committing
+pre-commit:
+  commands:
+    - cargo fmt --all -- --check
+    - cargo clippy --workspace --all-features -- --deny warnings
+
+# Run tests before pushing
+pre-push:
+  commands:
+    - cargo test --all-features
+    - cargo build --verbose
+
+# Validate commit messages
+commit-msg:
+  commands:
+    # Use custom script to validate commit messages
+    - ./scripts/verify-commit-message.sh $1
+```
+
+### Common Commands
+
+```bash
+# Install all hooks defined in configuration
+hooksmith install
+
+# Run a specific hook manually
+hooksmith run pre-commit
+
+# Uninstall all hooks or a specific one
+hooksmith uninstall
+hooksmith uninstall pre-commit
+
+# Compare installed hooks with configuration
+hooksmith compare
+
+# Validate hook configuration against Git standards
+hooksmith validate
+```
+
+Add `--dry-run` to any command to preview changes without applying them:
+
+```bash
+hooksmith install --dry-run
+```
+
+## 📚 Command Reference
+
+| Command | Description |
+|---------|-------------|
+| `install` | Install all hooks from configuration file |
+| `run <hook>` | Run a specific hook manually |
+| `uninstall [hook]` | Uninstall all hooks or a specific one |
+| `compare` | Compare installed hooks with configuration |
+| `validate` | Validate hook configuration against Git standards |
+
+### Global Options
+
+| Option | Description |
+|--------|-------------|
+| `--config-path <PATH>` | Specify a custom configuration file path |
+| `--dry-run` | Preview changes without applying them |
+| `--verbose` | Show detailed output during execution |
+| `--help` | Display help information |
+
+## 🤝 Contributing
+
+Contributions are welcome! Feel free to:
+
+- Report bugs and suggest features
+- Submit pull requests
+- Improve documentation
+- Share your use cases and feedback
+
+## 📄 License
+
+This project is dual-licensed under either:
+
+- [Apache License 2.0](LICENSE-APACHE)
+- [MIT License](LICENSE-MIT)
+
+at your option.
