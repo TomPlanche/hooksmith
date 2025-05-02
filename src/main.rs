@@ -10,11 +10,11 @@ const GIT_ROOT: &str = ".git";
 
 fn main() -> std::io::Result<()> {
     if !Path::new(GIT_ROOT).exists() {
-        // print_error(
-        //     "Git repository not found",
-        //     ".git directory (or file for submodules) not found.",
-        //     "Please ensure you're in a Git repository or submodule.",
-        // );
+        format_error_message(
+            ".git directory (or file for submodules) not found.",
+            "Please ensure you're in a Git repository or submodule.",
+        );
+
         std::process::exit(1);
     }
 
@@ -22,11 +22,10 @@ fn main() -> std::io::Result<()> {
     let config_path = Path::new(&cli.config_path);
 
     if !config_path.exists() {
-        // print_error(
-        //     "Configuration file not found",
-        //     &format!("Could not find config file at: {}", config_path.display()),
-        //     "The default configuration file is set to `./hooksmith.toml`. Please create a configuration file or specify its location with --config-path.",
-        // );
+        format_error_message(
+            &format!("Could not find config file at: {}", config_path.display()),
+            "The default configuration file is set to `./hooksmith.toml`. Please create a configuration file or specify its location with --config-path.",
+        );
 
         std::process::exit(1);
     }
@@ -52,4 +51,17 @@ fn main() -> std::io::Result<()> {
         Command::Compare => hs.compare_hooks(),
         Command::Validate => hs.validate_hooks(),
     }
+}
+
+/// # `format_error_message`
+/// Formats a message without suggestion.
+///
+/// ## Arguments
+/// * `title` - The title of the message.
+/// * `details` - The details of the message.
+///
+/// ## Returns
+/// * String - The formatted message.
+fn format_error_message(title: &str, details: &str) -> String {
+    format!("hooksmith error:\n{title}\n\n{details}")
 }
