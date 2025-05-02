@@ -1,7 +1,8 @@
 use std::{fs, path::Path};
 
+use serde::Deserialize;
+
 use crate::{
-    Config,
     git_related::{check_for_git_hooks, get_git_hooks_path},
     utils::{format_list, print_error, print_success, print_warning},
 };
@@ -37,8 +38,21 @@ const GIT_HOOKS: [&str; 28] = [
     "post-index-change",
 ];
 
+/// Configuration structure for hooksmith.
+#[derive(Deserialize)]
+struct Config {
+    #[serde(flatten)]
+    hooks: std::collections::HashMap<String, Hook>,
+}
+
+/// Hook structure for hooksmith.
+#[derive(Deserialize)]
+struct Hook {
+    commands: Vec<String>,
+}
+
 pub struct Hooksmith {
-    pub config: Config,
+    config: Config,
     dry_run: bool,
     verbose: bool,
 }
@@ -202,8 +216,6 @@ impl Hooksmith {
     ///
     /// ## Arguments
     /// * `config` - Parsed configuration file
-    /// * `dry_run` - Whether to run the hook in dry run mode
-    /// * `verbose` - Whether to print verbose output
     pub fn install_hooks(&self) -> std::io::Result<()> {
         self.validate_hooks()?;
 
@@ -222,25 +234,6 @@ impl Hooksmith {
         }
 
         Ok(())
-    }
-
-    /// # `read_config`
-    /// Read the configuration file and parse it into a Config struct.
-    ///
-    /// ## Arguments
-    /// * `config_path` - Path to the configuration file
-    ///
-    /// ## Errors
-    /// * If the configuration file cannot be read or parsed
-    ///
-    /// ## Returns
-    /// * `Config` - Parsed configuration file
-    pub fn read_config(config_path: &Path) -> std::io::Result<Config> {
-        let config_string = fs::read_to_string(config_path)?;
-        let config = serde_yaml::from_str(&config_string)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-
-        Ok(config)
     }
 
     /// # `run_hook`
@@ -500,6 +493,25 @@ impl Hooksmith {
                 .arg(command)
                 .status()
         }
+    }
+
+    /// # `read_config`
+    /// Read the configuration file and parse it into a Config struct.
+    ///
+    /// ## Arguments
+    /// * `config_path` - Path to the configuration file
+    ///
+    /// ## Errors
+    /// * If the configuration file cannot be read or parsed
+    ///
+    /// ## Returns
+    /// * `Config` - Parsed configuration file
+    fn read_config(config_path: &Path) -> std::io::Result<Config> {
+        let config_string = fs::read_to_string(config_path)?;
+        let config = serde_yaml::from_str(&config_string)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+
+        Ok(config)
     }
 }
 

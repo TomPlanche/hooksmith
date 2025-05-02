@@ -14,7 +14,6 @@ trait MessageType {
 struct Error;
 struct Warning;
 struct Success;
-struct Info;
 
 // Implement the MessageType trait for each type
 impl MessageType for Error {
@@ -28,10 +27,6 @@ impl MessageType for Warning {
 
 impl MessageType for Success {
     const PREFIX: &'static str = "✅ SUCCESS";
-}
-
-impl MessageType for Info {
-    const PREFIX: &'static str = "ℹ️ INFO";
 }
 
 /// # `format_message`
@@ -132,16 +127,6 @@ pub fn print_warning(title: &str, details: &str) {
 /// - `details`: The details of the success message.
 pub fn print_success(title: &str, details: &str) {
     print_message::<Success>(title, details);
-}
-
-/// # `print_info`
-/// Prints an informational message with a consistent format for user-friendly display.
-///
-/// ## Arguments
-/// - `title`: The title of the informational message.
-/// - `details`: The details of the informational message.
-pub fn print_info(title: &str, details: &str) {
-    print_message::<Info>(title, details);
 }
 
 /// # `format_list`

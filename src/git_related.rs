@@ -1,6 +1,4 @@
-use std::path::{Path, PathBuf};
-
-use crate::GIT_ROOT;
+use std::path::PathBuf;
 
 /// # `get_git_hooks_path`
 /// Get the path to the Git hooks directory.
@@ -32,8 +30,7 @@ pub fn get_git_hooks_path() -> std::io::Result<PathBuf> {
 /// * `bool` - True if the directory is a Git repository with hooks, false otherwise
 #[must_use]
 pub fn check_for_git_hooks() -> bool {
-    let git_root = Path::new(GIT_ROOT);
     let git_hooks = get_git_hooks_path().ok();
 
-    git_root.exists() && git_hooks.is_some_and(|path| path.exists())
+    git_hooks.is_some_and(|path| path.exists())
 }
