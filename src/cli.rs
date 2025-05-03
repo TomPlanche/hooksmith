@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 
 /// Commands enum for hooksmith CLI.
-#[derive(Subcommand, Debug)]
+#[derive(Subcommand)]
 pub enum Command {
     /// Install all hooks listed in the config file
     #[command(about = "Install all hooks listed in the config file")]
@@ -31,11 +31,10 @@ pub enum Command {
     Validate,
 }
 
-/// # `Cli`
 /// Command line interface structure for hooksmith.
 #[derive(Parser)]
 #[command(about = "A trivial Git hooks utility.")]
-#[command(author = "@TomPlanche")]
+#[command(author = "Tom Planche <tomplanche@proton.me>")]
 #[command(name = "hooksmith")]
 pub struct Cli {
     /// Command to execute

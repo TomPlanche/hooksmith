@@ -1,11 +1,10 @@
-use std::{fs, path::Path};
-
-use serde::Deserialize;
-
 use crate::{
     git_related::{check_for_git_hooks, get_git_hooks_path},
     utils::{format_list, print_error, print_success, print_warning},
 };
+
+use serde::Deserialize;
+use std::{fs, path::Path};
 
 const GIT_HOOKS: [&str; 28] = [
     "applypatch-msg",
@@ -51,6 +50,7 @@ struct Hook {
     commands: Vec<String>,
 }
 
+/// Hooksmith structure for managing git hooks.
 pub struct Hooksmith {
     config: Config,
     dry_run: bool,
@@ -58,10 +58,14 @@ pub struct Hooksmith {
 }
 
 impl Hooksmith {
-    /// # `new_from_config`
     /// Create a new instance of `Hooksmith` from a configuration file.
     ///
-    /// ## Errors
+    /// # Arguments
+    /// * `config` - Path to the configuration file
+    /// * `dry_run` - Whether to run in dry run mode
+    /// * `verbose` - Whether to print verbose output
+    ///
+    /// # Errors
     /// * `std::io::Error` - If the configuration file cannot be read or parsed.
     pub fn new_from_config(config: &Path, dry_run: bool, verbose: bool) -> std::io::Result<Self> {
         let config = Self::read_config(config)?;
@@ -77,10 +81,9 @@ impl Hooksmith {
         })
     }
 
-    /// # `compare_hooks`
     /// Compare installed hooks with the configuration file.
     ///
-    /// ## Errors
+    /// # Errors
     /// * If there is an error reading the git hooks directory.
     pub fn compare_hooks(&self) -> std::io::Result<()> {
         let git_hooks_path = get_git_hooks_path()?;
@@ -132,15 +135,14 @@ impl Hooksmith {
         Ok(())
     }
 
-    /// # `install_hook`
-    /// Install a single hook.
+    /// Install a single, given hook.
     ///
-    /// ## Errors
+    /// # Arguments
+    /// * `hook_name` - Name of the hook to install
+    ///
+    /// # Errors
     /// * If the `.git/hooks` directory cannot be created
     /// * If the hook cannot be installed/given permission
-    ///
-    /// ## Arguments
-    /// * `hook_name` - Name of the hook to install
     pub fn install_hook(&self, hook_name: &str) -> std::io::Result<()> {
         if self.verbose && !self.dry_run {
             println!("🪝 Installing {hook_name} hook...");
@@ -209,12 +211,12 @@ impl Hooksmith {
         Ok(())
     }
 
-    /// # `install_hooks`
+    /// Install all hooks.
     ///
-    /// ## Errors
+    /// # Errors
     /// * If the `.git/hooks` directory cannot be created
     ///
-    /// ## Arguments
+    /// # Arguments
     /// * `config` - Parsed configuration file
     pub fn install_hooks(&self) -> std::io::Result<()> {
         self.validate_hooks()?;
@@ -236,17 +238,16 @@ impl Hooksmith {
         Ok(())
     }
 
-    /// # `run_hook`
     /// Runs a hook by executing its commands.
-    ///
-    /// ## Errors
-    /// * If a command cannot be executed
-    ///
-    /// ## Panics
-    /// * If the hook is not found in the configuration.
     ///
     /// # Arguments
     /// * `hook_name` - The name of the hook to run.
+    ///
+    /// # Errors
+    /// * If a command cannot be executed
+    ///
+    /// # Panics
+    /// * If the hook is not found in the configuration.
     pub fn run_hook(&self, hook_name: &str) -> Result<(), std::io::Error> {
         if let Some(hook) = self.config.hooks.get(hook_name) {
             if self.verbose && !self.dry_run {
@@ -323,14 +324,13 @@ impl Hooksmith {
         }
     }
 
-    /// # `uninstall_given_hook`
-    /// Uninstalls a single hook by removing its file.
-    ///
-    /// ## Errors
-    /// * Errors if the command fails to remove the file.
+    /// Uninstalls a single, given hook by removing its file.
     ///
     /// # Arguments
     /// * `hook_name` - The name of the hook to run.
+    ///
+    /// # Errors
+    /// * Errors if the command fails to remove the file.
     pub fn uninstall_given_hook(&self, hook_name: &str) -> std::io::Result<()> {
         if self.config.hooks.contains_key(hook_name) {
             if self.verbose && !self.dry_run {
@@ -363,10 +363,9 @@ impl Hooksmith {
         Ok(())
     }
 
-    /// # `uninstall_hooks`
     /// Uninstalls all hooks by removing their files.
     ///
-    /// ## Errors
+    /// # Errors
     /// * If there is an error uninstalling a hook.
     pub fn uninstall_hooks(&self) -> std::io::Result<()> {
         if self.verbose && !self.dry_run {
@@ -387,10 +386,9 @@ impl Hooksmith {
         Ok(())
     }
 
-    /// # `validate_hooks`
     /// Validate that hooks in the configuration file are standard Git hooks.
     ///
-    /// ## Errors
+    /// # Errors
     /// None, I just return Ok(()) to aggregate all calls in a `match` statement in the main function.
     pub fn validate_hooks(&self) -> std::io::Result<()> {
         if self.verbose {
@@ -431,10 +429,9 @@ impl Hooksmith {
         Ok(())
     }
 
-    /// # `validate_hooks_for_install`
     /// Validate hooks configuration before installation.
     ///
-    /// ## Errors
+    /// # Errors
     /// * `std::io::Error` - If any invalid hook names are found.
     pub fn validate_hooks_for_install(&self) -> std::io::Result<()> {
         if self.verbose {
@@ -463,14 +460,13 @@ impl Hooksmith {
         Ok(())
     }
 
-    /// # `execute_command`
     /// Executes a command.
-    ///
-    /// ## Errors
-    /// * If a command cannot be executed
     ///
     /// # Arguments
     /// * `command` - The command to execute.
+    ///
+    /// # Errors
+    /// * If a command cannot be executed
     fn execute_command(&self, command: &str) -> std::io::Result<std::process::ExitStatus> {
         if self.dry_run {
             println!("🔍 Would execute: {command}");
@@ -495,16 +491,15 @@ impl Hooksmith {
         }
     }
 
-    /// # `read_config`
     /// Read the configuration file and parse it into a Config struct.
     ///
-    /// ## Arguments
+    /// # Arguments
     /// * `config_path` - Path to the configuration file
     ///
-    /// ## Errors
+    /// # Errors
     /// * If the configuration file cannot be read or parsed
     ///
-    /// ## Returns
+    /// # Returns
     /// * `Config` - Parsed configuration file
     fn read_config(config_path: &Path) -> std::io::Result<Config> {
         let config_string = fs::read_to_string(config_path)?;

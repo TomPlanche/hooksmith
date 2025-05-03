@@ -1,12 +1,11 @@
 use std::path::PathBuf;
 
-/// # `get_git_hooks_path`
 /// Get the path to the Git hooks directory.
 ///
-/// ## Errors
+/// # Errors
 /// * If the `git` command fails to execute
 ///
-/// ## Returns
+/// # Returns
 /// * `PathBuf` - Path to the Git hooks directory
 pub fn get_git_hooks_path() -> std::io::Result<PathBuf> {
     let output = std::process::Command::new("git")
@@ -20,13 +19,12 @@ pub fn get_git_hooks_path() -> std::io::Result<PathBuf> {
     Ok(PathBuf::from(path))
 }
 
-/// # `check_for_git_hooks`
 /// Check if the current directory is a Git repository and if it has hooks.
 ///
-/// ## Arguments
+/// # Arguments
 /// * `path` - Path to the directory to check
 ///
-/// ## Returns
+/// # Returns
 /// * `bool` - True if the directory is a Git repository with hooks, false otherwise
 #[must_use]
 pub fn check_for_git_hooks() -> bool {

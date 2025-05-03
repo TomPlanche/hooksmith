@@ -53,14 +53,13 @@ fn main() -> std::io::Result<()> {
     }
 }
 
-/// # `format_error_message`
 /// Formats a message without suggestion.
 ///
-/// ## Arguments
+/// # Arguments
 /// * `title` - The title of the message.
 /// * `details` - The details of the message.
 ///
-/// ## Returns
+/// # Returns
 /// * String - The formatted message.
 fn format_error_message(title: &str, details: &str) -> String {
     format!("hooksmith error:\n{title}\n\n{details}")
