@@ -2,7 +2,7 @@
 authors = ["Tom Planche <tomplanche@proton.me>"]
 categories = ["command-line-utilities"]
 description = "Trivial git hook management tool"
-edition = "2024"
+edition = "2021"
 homepage = "https://github.com/TomPlanche/hooksmith"
 include = [
     "/Cargo.toml",
@@ -16,7 +16,7 @@ license = "Apache-2.0 OR MIT"
 name = "hooksmith"
 readme = "README.md"
 repository = "https://github.com/TomPlanche/hooksmith"
-version = "1.7.1"
+version = "1.7.2"
 
 [dependencies]
 clap = { version = "4.5.37", features = ["derive"] }
