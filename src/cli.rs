@@ -1,5 +1,8 @@
 use clap::{Parser, Subcommand};
 
+/// Version string derived from Cargo.toml
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 /// Commands enum for hooksmith CLI.
 #[derive(Subcommand)]
 pub enum Command {
@@ -36,6 +39,7 @@ pub enum Command {
 #[command(about = "A trivial Git hooks utility.")]
 #[command(author = "Tom Planche <tomplanche@proton.me>")]
 #[command(name = "hooksmith")]
+#[command(version = VERSION)]
 pub struct Cli {
     /// Command to execute
     #[command(subcommand)]
@@ -77,5 +81,12 @@ mod tests {
             Command::Run { hook_name } => assert_eq!(hook_name, "pre-commit"),
             _ => panic!("Expected Run command with hook_name=pre-commit"),
         }
+    }
+
+    #[test]
+    fn test_version_flag() {
+        let args = vec!["hooksmith", "--version"];
+        let cli = Cli::try_parse_from(args);
+        assert!(cli.is_ok());
     }
 }
