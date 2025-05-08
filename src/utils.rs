@@ -135,3 +135,74 @@ pub fn format_list<T: Display>(items: &[T]) -> String {
         .collect::<Vec<_>>()
         .join("\n")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_message() {
+        let title = "Test Title";
+        let details = "Test Details";
+
+        // Test error message
+        let error_msg = format_message::<Error>(title, details);
+        assert!(error_msg.contains("🚨 ERROR"));
+        assert!(error_msg.contains(title));
+        assert!(error_msg.contains(details));
+
+        // Test warning message
+        let warning_msg = format_message::<Warning>(title, details);
+        assert!(warning_msg.contains("⚠️ WARNING"));
+        assert!(warning_msg.contains(title));
+        assert!(warning_msg.contains(details));
+
+        // Test success message
+        let success_msg = format_message::<Success>(title, details);
+        assert!(success_msg.contains("✅ SUCCESS"));
+        assert!(success_msg.contains(title));
+        assert!(success_msg.contains(details));
+    }
+
+    #[test]
+    fn test_format_message_with_suggestion() {
+        let title = "Test Title";
+        let details = "Test Details";
+        let suggestion = "Test Suggestion";
+
+        // Test error message with suggestion
+        let error_msg = format_message_with_suggestion::<Error>(title, details, suggestion);
+        assert!(error_msg.contains("🚨 ERROR"));
+        assert!(error_msg.contains(title));
+        assert!(error_msg.contains(details));
+        assert!(error_msg.contains(suggestion));
+
+        // Test warning message with suggestion
+        let warning_msg = format_message_with_suggestion::<Warning>(title, details, suggestion);
+        assert!(warning_msg.contains("⚠️ WARNING"));
+        assert!(warning_msg.contains(title));
+        assert!(warning_msg.contains(details));
+        assert!(warning_msg.contains(suggestion));
+
+        // Test success message with suggestion
+        let success_msg = format_message_with_suggestion::<Success>(title, details, suggestion);
+        assert!(success_msg.contains("✅ SUCCESS"));
+        assert!(success_msg.contains(title));
+        assert!(success_msg.contains(details));
+        assert!(success_msg.contains(suggestion));
+    }
+
+    #[test]
+    fn test_format_list() {
+        let empty_list: Vec<String> = vec![];
+        assert_eq!(format_list(&empty_list), "");
+
+        let single_item = vec!["item1".to_string()];
+        assert_eq!(format_list(&single_item), "  - item1");
+
+        let multiple_items = vec!["item1".to_string(), "item2".to_string()];
+        let formatted = format_list(&multiple_items);
+        assert!(formatted.contains("  - item1"));
+        assert!(formatted.contains("  - item2"));
+    }
+}

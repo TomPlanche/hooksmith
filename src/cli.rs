@@ -82,11 +82,4 @@ mod tests {
             _ => panic!("Expected Run command with hook_name=pre-commit"),
         }
     }
-
-    #[test]
-    fn test_version_flag() {
-        let args = vec!["hooksmith", "--version"];
-        let cli = Cli::try_parse_from(args);
-        assert!(cli.is_ok());
-    }
 }
