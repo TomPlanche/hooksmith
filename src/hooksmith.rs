@@ -641,6 +641,9 @@ pre-push:
 
     #[test]
     fn test_run_hook() -> Result<(), Box<dyn Error>> {
+        let temp_dir = setup_test_env()?;
+        std::env::set_current_dir(temp_dir)?;
+
         let hs = Hooksmith::new_from_config(Path::new("hooksmith.yaml"), true, false)?;
 
         // Test with dry run
