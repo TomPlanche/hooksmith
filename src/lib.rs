@@ -1,10 +1,10 @@
+pub mod error;
 pub(crate) mod git_related;
 mod hooksmith;
 pub(crate) mod utils;
-pub mod error;
 
-pub use hooksmith::Hooksmith;
 pub use error::{HooksmithError, Result};
+pub use hooksmith::Hooksmith;
 
 /// Initialize Hooksmith by reading the configuration file and installing hooks.
 /// This is meant to be called from a `build.rs` script.
