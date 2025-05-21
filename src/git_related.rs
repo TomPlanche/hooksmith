@@ -1,3 +1,4 @@
+use crate::error::GitError;
 use std::path::PathBuf;
 
 /// Get the path to the Git hooks directory.
@@ -7,7 +8,7 @@ use std::path::PathBuf;
 ///
 /// # Returns
 /// * `PathBuf` - Path to the Git hooks directory
-pub fn get_git_hooks_path() -> std::io::Result<PathBuf> {
+pub fn get_git_hooks_path() -> Result<PathBuf, GitError> {
     let output = std::process::Command::new("git")
         .arg("rev-parse")
         .arg("--git-path")
@@ -15,7 +16,7 @@ pub fn get_git_hooks_path() -> std::io::Result<PathBuf> {
         .output()?;
 
     if !output.status.success() {
-        return Err(std::io::Error::other("Failed to get Git hooks path"));
+        return Err(GitError::NotGitRepo);
     }
 
     let path = String::from_utf8_lossy(&output.stdout).trim().to_string();

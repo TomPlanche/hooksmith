@@ -1,10 +1,16 @@
 use crate::{
+    error::{ConfigError, HookExecutionError, Result, ValidationError},
     git_related::{check_for_git_hooks, get_git_hooks_path},
     utils::{format_list, print_error, print_success, print_warning},
+    HooksmithError,
 };
 
 use serde::Deserialize;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+    process::{Command, ExitStatus},
+};
 
 const GIT_HOOKS: [&str; 28] = [
     "applypatch-msg",
@@ -66,8 +72,8 @@ impl Hooksmith {
     /// * `verbose` - Whether to print verbose output
     ///
     /// # Errors
-    /// * `std::io::Error` - If the configuration file cannot be read or parsed.
-    pub fn new_from_config(config: &Path, dry_run: bool, verbose: bool) -> std::io::Result<Self> {
+    /// * If the configuration file cannot be read or parsed
+    pub fn new_from_config(config: &Path, dry_run: bool, verbose: bool) -> Result<Self> {
         let config = Self::read_config(config)?;
 
         if dry_run {
@@ -85,7 +91,7 @@ impl Hooksmith {
     ///
     /// # Errors
     /// * If there is an error reading the git hooks directory.
-    pub fn compare_hooks(&self) -> std::io::Result<()> {
+    pub fn compare_hooks(&self) -> Result<()> {
         let git_hooks_path = get_git_hooks_path()?;
         let mut differences_found = false;
 
@@ -143,7 +149,7 @@ impl Hooksmith {
     /// # Errors
     /// * If the `.git/hooks` directory cannot be created
     /// * If the hook cannot be installed/given permission
-    pub fn install_hook(&self, hook_name: &str) -> std::io::Result<()> {
+    pub fn install_hook(&self, hook_name: &str) -> Result<()> {
         if self.verbose && !self.dry_run {
             println!("🪝 Installing {hook_name} hook...");
         }
@@ -218,7 +224,7 @@ impl Hooksmith {
     ///
     /// # Arguments
     /// * `config` - Parsed configuration file
-    pub fn install_hooks(&self) -> std::io::Result<()> {
+    pub fn install_hooks(&self) -> Result<()> {
         self.validate_hooks()?;
 
         let git_hooks_path = get_git_hooks_path()?;
@@ -248,7 +254,7 @@ impl Hooksmith {
     ///
     /// # Panics
     /// * If the hook is not found in the configuration.
-    pub fn run_hook(&self, hook_name: &str) -> Result<(), std::io::Error> {
+    pub fn run_hook(&self, hook_name: &str) -> Result<()> {
         if let Some(hook) = self.config.hooks.get(hook_name) {
             if self.verbose && !self.dry_run {
                 println!("📋 Running Hook: {hook_name}");
@@ -320,7 +326,7 @@ impl Hooksmith {
                 ),
             );
 
-            std::process::exit(1);
+            Err(HookExecutionError::HookNotFound(hook_name.to_string()).into())
         }
     }
 
@@ -331,7 +337,7 @@ impl Hooksmith {
     ///
     /// # Errors
     /// * Errors if the command fails to remove the file.
-    pub fn uninstall_given_hook(&self, hook_name: &str) -> std::io::Result<()> {
+    pub fn uninstall_given_hook(&self, hook_name: &str) -> Result<()> {
         if self.config.hooks.contains_key(hook_name) {
             if self.verbose && !self.dry_run {
                 println!("🗑️ Uninstalling hook: {hook_name}");
@@ -357,7 +363,7 @@ impl Hooksmith {
             eprintln!("No file found for hook '{hook_name}'");
             eprintln!("Possible hooks: {possible_hooks:?}");
 
-            std::process::exit(1);
+            return Err(ValidationError::InvalidHookName(hook_name.to_string()).into());
         }
 
         Ok(())
@@ -367,7 +373,7 @@ impl Hooksmith {
     ///
     /// # Errors
     /// * If there is an error uninstalling a hook.
-    pub fn uninstall_hooks(&self) -> std::io::Result<()> {
+    pub fn uninstall_hooks(&self) -> Result<()> {
         if self.verbose && !self.dry_run {
             println!("🗑️ Uninstalling all hooks");
         }
@@ -390,7 +396,7 @@ impl Hooksmith {
     ///
     /// # Errors
     /// None, I just return Ok(()) to aggregate all calls in a `match` statement in the main function.
-    pub fn validate_hooks(&self) -> std::io::Result<()> {
+    pub fn validate_hooks(&self) -> Result<()> {
         if self.verbose {
             println!("🔍 Validating hooks in configuration file...");
         }
@@ -432,8 +438,8 @@ impl Hooksmith {
     /// Validate hooks configuration before installation.
     ///
     /// # Errors
-    /// * `std::io::Error` - If any invalid hook names are found.
-    pub fn validate_hooks_for_install(&self) -> std::io::Result<()> {
+    /// * If any invalid hook names are found.
+    pub fn validate_hooks_for_install(&self) -> Result<()> {
         if self.verbose {
             println!("🔍 Validating hooks before installation...");
         }
@@ -451,10 +457,7 @@ impl Hooksmith {
                 format_list(&invalid_hooks)
             );
 
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                error_message,
-            ));
+            return Err(ValidationError::InvalidHookName(error_message).into());
         }
 
         Ok(())
@@ -467,7 +470,7 @@ impl Hooksmith {
     ///
     /// # Errors
     /// * If a command cannot be executed
-    fn execute_command(&self, command: &str) -> std::io::Result<std::process::ExitStatus> {
+    fn execute_command(&self, command: &str) -> Result<ExitStatus> {
         if self.dry_run {
             println!("🔍 Would execute: {command}");
 
@@ -484,10 +487,7 @@ impl Hooksmith {
                 Ok(ExitStatusExt::from_raw(0))
             }
         } else {
-            std::process::Command::new("sh")
-                .arg("-c")
-                .arg(command)
-                .status()
+            Ok(Command::new("sh").arg("-c").arg(command).status()?)
         }
     }
 
@@ -501,35 +501,37 @@ impl Hooksmith {
     ///
     /// # Returns
     /// * `Config` - Parsed configuration file
-    fn read_config(config_path: &Path) -> std::io::Result<Config> {
+    fn read_config(config_path: &Path) -> Result<Config> {
         let config_string = fs::read_to_string(config_path)?;
-        let config = serde_yaml::from_str(&config_string)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
 
-        Ok(config)
+        match serde_yaml::from_str(&config_string) {
+            Ok(config) => Ok(config),
+            Err(err) => Err(HooksmithError::Config(ConfigError::Parse(err))),
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{error::Error, fs};
+    use crate::{
+        error::{GitError, Result},
+        HooksmithError,
+    };
+    use std::fs;
     use tempfile::TempDir;
 
-    fn setup_test_env() -> Result<TempDir, Box<dyn Error>> {
+    fn setup_test_env() -> Result<TempDir> {
         let temp_dir = TempDir::new()?;
 
         // Create git structure
-        let output = std::process::Command::new("git")
+        let output = Command::new("git")
             .arg("init")
             .current_dir(&temp_dir)
             .output()?;
 
         if !output.status.success() {
-            return Err(Box::new(std::io::Error::other(format!(
-                "git init failed: {}",
-                String::from_utf8_lossy(&output.stderr)
-            ))));
+            return Err(HooksmithError::Git(GitError::NotGitRepo));
         }
 
         // Create a simple config file
@@ -549,16 +551,15 @@ pre-push:
     }
 
     #[test]
-    fn test_validate_hooks_for_install_invalid() -> Result<(), Box<dyn Error>> {
-        let temp_dir = TempDir::new().unwrap();
+    fn test_validate_hooks_for_install_invalid() -> Result<()> {
+        let temp_dir = TempDir::new()?;
         let config_path = temp_dir.path().join("invalid.yaml");
 
         // Create config with invalid hook
         fs::write(
             &config_path,
             "non-existent-hook:\n  commands:\n    - echo 'invalid'",
-        )
-        .unwrap();
+        )?;
 
         let hs = Hooksmith::new_from_config(&config_path, false, false)?;
 
@@ -569,11 +570,11 @@ pre-push:
     }
 
     #[test]
-    fn test_empty_commands_list() -> Result<(), Box<dyn Error>> {
-        let temp_dir = TempDir::new().unwrap();
+    fn test_empty_commands_list() -> Result<()> {
+        let temp_dir = TempDir::new()?;
         let config_path = temp_dir.path().join("empty_commands.yaml");
 
-        fs::write(&config_path, "pre-commit:\n  commands: []").unwrap();
+        fs::write(&config_path, "pre-commit:\n  commands: []")?;
 
         let hs = Hooksmith::new_from_config(&config_path, false, false)?;
 
@@ -584,7 +585,7 @@ pre-push:
     }
 
     #[test]
-    fn test_setup_test_env() -> Result<(), Box<dyn Error>> {
+    fn test_setup_test_env() -> Result<()> {
         let temp_dir = setup_test_env()?;
 
         assert!(temp_dir.path().exists());
@@ -597,7 +598,7 @@ pre-push:
     }
 
     #[test]
-    fn test_install_hook() -> Result<(), Box<dyn Error>> {
+    fn test_install_hook() -> Result<()> {
         let temp_dir = setup_test_env()?;
         std::env::set_current_dir(&temp_dir)?;
 
@@ -622,7 +623,7 @@ pre-push:
     }
 
     #[test]
-    fn test_execute_command() -> Result<(), Box<dyn Error>> {
+    fn test_execute_command() -> Result<()> {
         let temp_dir = setup_test_env()?;
         let config_path = temp_dir.path().join("hooksmith.yaml");
 
@@ -640,7 +641,7 @@ pre-push:
     }
 
     #[test]
-    fn test_run_hook() -> Result<(), Box<dyn Error>> {
+    fn test_run_hook() -> Result<()> {
         let temp_dir = setup_test_env()?;
         std::env::set_current_dir(temp_dir)?;
 

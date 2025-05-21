@@ -1,11 +1,8 @@
 use clap::{Parser, Subcommand};
 
-/// Version string derived from Cargo.toml
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
-
 /// Commands enum for hooksmith CLI.
 #[derive(Subcommand)]
-pub enum Command {
+pub(crate) enum Command {
     /// Install all hooks listed in the config file
     #[command(about = "Install all hooks listed in the config file")]
     Install,
@@ -39,23 +36,23 @@ pub enum Command {
 #[command(about = "A trivial Git hooks utility.")]
 #[command(author = "Tom Planche <tomplanche@proton.me>")]
 #[command(name = "hooksmith")]
-#[command(version = VERSION)]
-pub struct Cli {
+#[command(version)]
+pub(crate) struct Cli {
     /// Command to execute
     #[command(subcommand)]
-    pub command: Command,
+    pub(crate) command: Command,
 
     /// Path to the hooksmith.yaml file
     #[arg(short, long, default_value_t = String::from("hooksmith.yaml"))]
-    pub config_path: String,
+    pub(crate) config_path: String,
 
     /// Whether to print verbose output
     #[arg(short, long, default_value_t = false)]
-    pub verbose: bool,
+    pub(crate) verbose: bool,
 
     /// Whether to perform a dry run
     #[arg(long, default_value_t = false)]
-    pub dry_run: bool,
+    pub(crate) dry_run: bool,
 }
 
 #[cfg(test)]
