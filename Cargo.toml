@@ -28,9 +28,6 @@ thiserror = "2.0.12"
 name = "hooksmith"
 path = "src/lib.rs"
 
-[dev-dependencies]
-tempfile = "3.19.1"
-
 [profile.release]
 codegen-units = 1
 lto = false
