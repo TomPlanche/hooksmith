@@ -17,6 +17,9 @@ __________;"o,-------------......"""""`'-._/(
 <p align="center">
   <a href="https://crates.io/crates/hooksmith"><img src="https://img.shields.io/crates/v/hooksmith.svg" alt="Crates.io Version"></a>
   <a href="https://docs.rs/hooksmith"><img src="https://img.shields.io/docsrs/hooksmith/latest" alt="Documentation"></a>
+  <a href="https://sonarcloud.io/summary/new_code?id=TomPlanche_hooksmith"><img src="https://sonarcloud.io/api/project_badges/measure?project=TomPlanche_hooksmith&metric=alert_status" alt="SonarCloud Status"></a>
+  <a href="https://sonarcloud.io/summary/new_code?id=TomPlanche_hooksmith"><img src="https://sonarcloud.io/api/project_badges/measure?project=TomPlanche_hooksmith&metric=sqale_rating" alt="SonarCloud SQALE Rating"></a>
+  <a href="https://sonarcloud.io/summary/new_code?id=TomPlanche_hooksmith"><img src="https://sonarcloud.io/api/project_badges/measure?project=TomPlanche_hooksmith&metric=security_rating" alt="SonarCloud Security Rating"></a>
   <a href="https://github.com/TomPlanche/hooksmith/blob/main/LICENSE"><img src="https://img.shields.io/crates/l/hooksmith" alt="License"></a>
   <a href="https://github.com/TomPlanche/hooksmith/actions/workflows/rust.yaml"><img src="https://github.com/TomPlanche/hooksmith/actions/workflows/rust.yaml/badge.svg" alt="Build Status"></a>
 </p>
