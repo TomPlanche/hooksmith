@@ -244,6 +244,65 @@ impl Hooksmith {
         Ok(())
     }
 
+    /// Executes a single command and handles its output
+    ///
+    /// # Arguments
+    /// * `command_str` - The command to execute
+    /// * `hook_name` - The name of the hook being executed
+    fn execute_single_command(&self, command_str: &str, hook_name: &str) {
+        if self.verbose && !self.dry_run {
+            println!("  - Running command: {command_str}");
+        }
+
+        match self.execute_command(command_str) {
+            Ok(status) if status.success() => {
+                if self.verbose && !self.dry_run {
+                    println!("\n  ✅ Command completed successfully");
+                }
+            }
+            Ok(status) => {
+                let code = status.code().unwrap_or(1);
+                print_error(
+                    "Command failed",
+                    &format!("Hook '{hook_name}' command failed with status code {code}"),
+                    "Please check your command and try again.",
+                );
+
+                std::process::exit(code);
+            }
+            Err(e) => {
+                print_error(
+                    "Failed to execute command",
+                    &format!("Error: {e}"),
+                    "Please ensure the command exists and is executable.",
+                );
+
+                std::process::exit(1);
+            }
+        }
+    }
+
+    /// Handle hook not found error
+    ///
+    /// # Arguments
+    /// * `hook_name` - The name of the hook being executed
+    ///
+    /// # Errors
+    /// * If the hook is not found in the configuration.
+    fn handle_hook_not_found(&self, hook_name: &str) -> Result<()> {
+        let formatted_hooks = format_list(&self.config.hooks.keys().collect::<Vec<_>>());
+
+        print_error(
+            "Hook not found",
+            &format!("No commands defined for hook '{hook_name}'"),
+            &format!(
+                "Available hooks:\n{formatted_hooks}\n\nPlease check your configuration file."
+            ),
+        );
+
+        Err(HookExecutionError::HookNotFound(hook_name.to_string()).into())
+    }
+
     /// Runs a hook by executing its commands.
     ///
     /// # Arguments
@@ -255,79 +314,31 @@ impl Hooksmith {
     /// # Panics
     /// * If the hook is not found in the configuration.
     pub fn run_hook(&self, hook_name: &str) -> Result<()> {
-        if let Some(hook) = self.config.hooks.get(hook_name) {
-            if self.verbose && !self.dry_run {
-                println!("📋 Running Hook: {hook_name}");
-            }
+        let Some(hook) = self.config.hooks.get(hook_name) else {
+            return self.handle_hook_not_found(hook_name);
+        };
 
-            for (idx, command_str) in hook.commands.iter().enumerate() {
-                if self.dry_run {
-                    let current_dir = std::env::current_dir();
-
-                    println!("Step {} of {}:", idx + 1, hook.commands.len());
-                    println!("  Command: {command_str}");
-
-                    if let Ok(dir) = current_dir {
-                        println!("  Working directory: {}", dir.display());
-                    }
-
-                    println!();
-                    continue;
-                }
-
-                if self.verbose && !self.dry_run {
-                    println!("  - Running command: {command_str}");
-                }
-
-                match self.execute_command(command_str) {
-                    Ok(status) if status.success() => {
-                        if self.verbose && !self.dry_run {
-                            println!("\n  ✅ Command completed successfully");
-                        }
-                    }
-                    Ok(status) => {
-                        let code = status.code().unwrap_or(1);
-                        print_error(
-                            "Command failed",
-                            &format!("Hook '{hook_name}' command failed with status code {code}"),
-                            "Please check your command and try again.",
-                        );
-
-                        std::process::exit(code);
-                    }
-                    Err(e) => {
-                        print_error(
-                            "Failed to execute command",
-                            &format!("Error: {e}"),
-                            "Please ensure the command exists and is executable.",
-                        );
-
-                        std::process::exit(1);
-                    }
-                }
-            }
-
-            if self.dry_run {
-                println!(
-                    "🏁 Dry run completed. {} commands would be executed",
-                    hook.commands.len()
-                );
-            }
-
-            Ok(())
-        } else {
-            let formatted_hooks = format_list(&self.config.hooks.keys().collect::<Vec<_>>());
-
-            print_error(
-                "Hook not found",
-                &format!("No commands defined for hook '{hook_name}'"),
-                &format!(
-                    "Available hooks:\n{formatted_hooks}\n\nPlease check your configuration file."
-                ),
-            );
-
-            Err(HookExecutionError::HookNotFound(hook_name.to_string()).into())
+        if self.verbose && !self.dry_run {
+            println!("📋 Running Hook: {hook_name}");
         }
+
+        for (idx, command_str) in hook.commands.iter().enumerate() {
+            if self.dry_run {
+                handle_dry_run(command_str, idx, hook.commands.len());
+                continue;
+            }
+
+            self.execute_single_command(command_str, hook_name);
+        }
+
+        if self.dry_run {
+            println!(
+                "🏁 Dry run completed. {} commands would be executed",
+                hook.commands.len()
+            );
+        }
+
+        Ok(())
     }
 
     /// Uninstalls a single, given hook by removing its file.
@@ -509,6 +520,20 @@ impl Hooksmith {
             Err(err) => Err(HooksmithError::Config(ConfigError::Parse(err))),
         }
     }
+}
+
+/// Handles the dry run output for a command
+fn handle_dry_run(command_str: &str, idx: usize, total_commands: usize) {
+    let current_dir = std::env::current_dir();
+
+    println!("Step {} of {}:", idx + 1, total_commands);
+    println!("  Command: {command_str}");
+
+    if let Ok(dir) = current_dir {
+        println!("  Working directory: {}", dir.display());
+    }
+
+    println!();
 }
 
 #[cfg(test)]
