@@ -87,6 +87,66 @@ impl Hooksmith {
         })
     }
 
+    /// Check for hooks that are in config but not installed.
+    /// Iterates through hooks in the config and checks if they are installed.
+    /// Updates the `differences_found` flag and prints messages for missing hooks.
+    ///
+    /// # Arguments
+    /// * `git_hooks_path` - Path to the git hooks directory
+    /// * `differences_found` - Mutable reference to track if differences were found
+    fn check_missing_hooks(&self, git_hooks_path: &Path, differences_found: &mut bool) {
+        for hook_name in self.config.hooks.keys() {
+            let hook_path = git_hooks_path.join(hook_name);
+            if !hook_path.exists() {
+                if !*differences_found {
+                    println!("\n❌ Differences found:");
+
+                    *differences_found = true;
+                }
+
+                println!("  - Hook '{hook_name}' is in config but not installed");
+            }
+        }
+    }
+
+    /// Check for hooks that are installed but not in config.
+    /// Scans the git hooks directory and checks if each hook is in the config.
+    /// Updates the `differences_found` flag and prints messages for extra hooks.
+    ///
+    /// # Arguments
+    /// * `git_hooks_path` - Path to the git hooks directory
+    /// * `differences_found` - Mutable reference to track if differences were found
+    ///
+    /// # Errors
+    /// * If there is an error reading the git hooks directory
+    fn check_extra_hooks(&self, git_hooks_path: &Path, differences_found: &mut bool) {
+        if let Ok(entries) = fs::read_dir(git_hooks_path) {
+            for entry in entries.flatten() {
+                if let Ok(file_type) = entry.file_type() {
+                    if !file_type.is_file() {
+                        continue;
+                    }
+
+                    let hook_name = entry.file_name().to_string_lossy().to_string();
+
+                    if hook_name.ends_with(".sample") {
+                        continue;
+                    }
+
+                    if !self.config.hooks.contains_key(&hook_name) {
+                        if !*differences_found {
+                            println!("\n❌ Differences found:");
+
+                            *differences_found = true;
+                        }
+
+                        println!("  - Hook '{hook_name}' is installed but not in config");
+                    }
+                }
+            }
+        }
+    }
+
     /// Compare installed hooks with the configuration file.
     ///
     /// # Errors
@@ -100,42 +160,93 @@ impl Hooksmith {
         }
 
         // Check for hooks in config but not installed
-        for hook_name in self.config.hooks.keys() {
-            let hook_path = git_hooks_path.join(hook_name);
-            if !hook_path.exists() {
-                if !differences_found {
-                    println!("\n❌ Differences found:");
-                    differences_found = true;
-                }
-                println!("  - Hook '{hook_name}' is in config but not installed");
-            }
-        }
+        self.check_missing_hooks(&git_hooks_path, &mut differences_found);
 
         // Check for installed hooks not in config
-        if let Ok(entries) = fs::read_dir(&git_hooks_path) {
-            for entry in entries.flatten() {
-                if let Ok(file_type) = entry.file_type() {
-                    if file_type.is_file() {
-                        let hook_name = entry.file_name().to_string_lossy().to_string();
-
-                        if hook_name.ends_with(".sample") {
-                            continue;
-                        }
-
-                        if !self.config.hooks.contains_key(&hook_name) {
-                            if !differences_found {
-                                println!("\n❌ Differences found:");
-                                differences_found = true;
-                            }
-                            println!("  - Hook '{hook_name}' is installed but not in config");
-                        }
-                    }
-                }
-            }
-        }
+        self.check_extra_hooks(&git_hooks_path, &mut differences_found);
 
         if !differences_found {
             println!("✅ All hooks match the configuration file");
+        }
+
+        Ok(())
+    }
+
+    /// Creates the git hooks directory if it doesn't exist.
+    /// Handles both normal and dry run modes.
+    ///
+    /// # Arguments
+    /// * `git_hooks_path` - Path to the git hooks directory
+    ///
+    /// # Errors
+    /// * If the directory cannot be created
+    fn ensure_hooks_directory(&self, git_hooks_path: &Path) -> Result<()> {
+        if !git_hooks_path.exists() {
+            if self.dry_run {
+                println!("🪝 Skipping creation of .git/hooks directory in dry run mode");
+            } else {
+                if self.verbose {
+                    println!("  - Creating .git/hooks directory...");
+                }
+                fs::create_dir_all(git_hooks_path)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Generates the hook script content.
+    /// Creates a shell script that checks for hooksmith and runs the specified hook.
+    ///
+    /// # Arguments
+    /// * `hook_name` - Name of the hook to create content for
+    fn generate_hook_content(hook_name: &str) -> String {
+        format!(
+            "#!/bin/sh\n
+    if hooksmith -h >/dev/null 2>&1
+    then
+      exec hooksmith run {hook_name}
+    else
+      cargo install hooksmith
+      exec hooksmith run {hook_name}
+    fi"
+        )
+    }
+
+    /// Writes the hook file and sets appropriate permissions.
+    /// Handles both normal and dry run modes.
+    ///
+    /// # Arguments
+    /// * `hook_path` - Path where the hook file should be written
+    /// * `hook_name` - Name of the hook being installed
+    /// * `content` - Content to write to the hook file
+    ///
+    /// # Errors
+    /// * If the file cannot be written
+    /// * If permissions cannot be set
+    fn write_hook_file(&self, hook_path: &Path, hook_name: &str, content: &str) -> Result<()> {
+        if self.dry_run {
+            println!("🪝 Skipping installation of {hook_name} hook in dry run mode");
+            return Ok(());
+        }
+
+        fs::write(hook_path, content)?;
+
+        if self.verbose {
+            println!("  - Installing {hook_name} file...");
+        }
+
+        // Linux only
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+
+            let mut permissions = fs::metadata(hook_path)?.permissions();
+            permissions.set_mode(0o755);
+            fs::set_permissions(hook_path, permissions)?;
+
+            if self.verbose {
+                println!("  - Setting file permissions...");
+            }
         }
 
         Ok(())
@@ -155,60 +266,11 @@ impl Hooksmith {
         }
 
         let git_hooks_path = get_git_hooks_path()?;
-
-        if !git_hooks_path.exists() {
-            if self.dry_run {
-                println!("🪝 Skipping creation of .git/hooks directory in dry run mode");
-            } else {
-                if self.verbose {
-                    println!("  - Creating .git/hooks directory...");
-                }
-                fs::create_dir_all(&git_hooks_path)?;
-            }
-        }
+        self.ensure_hooks_directory(&git_hooks_path)?;
 
         let hook_path = git_hooks_path.join(hook_name);
-
-        /*
-        - >/dev/null 2>&1
-            This suppresses both stdout and stderr from the hooksmith -h check
-        */
-        let hook_content = format!(
-            "#!/bin/sh\n
-    if hooksmith -h >/dev/null 2>&1
-    then
-      exec hooksmith run {hook_name}
-    else
-      cargo install hooksmith
-      exec hooksmith run {hook_name}
-    fi"
-        );
-
-        if self.dry_run {
-            println!("🪝 Skipping installation of {hook_name} hook in dry run mode");
-        } else {
-            fs::write(&hook_path, hook_content)?;
-
-            if self.verbose {
-                println!("  - Installing {hook_name} file...");
-            }
-
-            // Linux only
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-
-                let mut permissions = fs::metadata(&hook_path)?.permissions();
-
-                permissions.set_mode(0o755);
-
-                fs::set_permissions(&hook_path, permissions)?;
-
-                if self.verbose {
-                    println!("  - Setting file permissions...");
-                }
-            }
-        }
+        let hook_content = Self::generate_hook_content(hook_name);
+        self.write_hook_file(&hook_path, hook_name, &hook_content)?;
 
         if self.verbose {
             println!("  ✅ Installed {hook_name} file");
