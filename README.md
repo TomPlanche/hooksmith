@@ -44,6 +44,10 @@ __________;"o,-------------......"""""`'-._/(
 - **🔍 Dry Run Mode** - Preview what would happen without making changes
 - **✅ Hook Validation** - Ensure your hooks comply with Git standards
 - **📝 Simple Configuration** - Define all your hooks in a clean YAML format
+- **🎨 Beautiful CLI** - Enjoy a polished terminal interface with clear output
+- **🐟 Shell Completion** - Built-in Fish shell completions for improved productivity
+- **🔄 Version Control** - Easily track hook changes with your repository
+- **🚦 Error Handling** - Robust error handling with clear, actionable messages
 
 ## ⚡ Why Hooksmith?
 
@@ -67,7 +71,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [build-dependencies]
-hooksmith = "1.4.3"
+hooksmith = "1.10.0"
 ```
 
 Create a `build.rs` file:
@@ -82,6 +86,15 @@ fn main() {
 ```
 
 > 💡 **Note**: Hooksmith includes shell completions for Fish. After installation, they become available automatically.
+
+### Dependencies
+
+Hooksmith is built with minimal but powerful dependencies:
+- `clap`: For robust command-line argument parsing
+- `console` & `dialoguer`: For beautiful terminal interfaces
+- `serde` & `serde_yaml`: For YAML configuration handling
+- `regex`: For pattern matching
+- `thiserror`: For ergonomic error handling
 
 ## 🚀 Quick Start
 
