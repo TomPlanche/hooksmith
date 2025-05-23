@@ -1,6 +1,7 @@
 pub mod error;
 pub(crate) mod git_related;
 mod hooksmith;
+pub(crate) mod my_clap_theme;
 pub(crate) mod utils;
 
 pub use error::{HooksmithError, Result};

@@ -22,10 +22,24 @@ fn main() -> Result<()> {
     let hs = Hooksmith::new_from_config(config_path, cli.dry_run, cli.verbose)?;
 
     match cli.command {
+        Command::Compare => hs.compare_hooks(),
         Command::Install => {
             hs.validate_hooks_for_install()?;
 
             hs.install_hooks()
+        }
+        Command::List { fish_tokens } => {
+            if let Some(fish_tokens) = fish_tokens {
+                hs.list_available_hooks(&fish_tokens)
+            } else {
+                let hooks = hs.get_available_hooks();
+
+                for hook in hooks {
+                    println!("{hook}");
+                }
+
+                Ok(())
+            }
         }
         Command::Uninstall { hook_name } => {
             if hook_name.is_none() {
@@ -36,8 +50,17 @@ fn main() -> Result<()> {
                 hs.uninstall_given_hook(&hook_name)
             }
         }
-        Command::Run { hook_name } => hs.run_hook(&hook_name),
-        Command::Compare => hs.compare_hooks(),
+        Command::Run {
+            hook_names,
+            interactive,
+        } => {
+            if hook_names.is_none() && !interactive {
+                eprintln!("Error: Either provide hook names or use --interactive (-i) flag");
+                std::process::exit(1);
+            }
+
+            hs.run_hook(hook_names.as_deref(), interactive)
+        }
         Command::Validate => hs.validate_hooks(),
     }
 }

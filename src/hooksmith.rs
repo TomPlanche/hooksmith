@@ -1,13 +1,16 @@
 use crate::{
     error::{ConfigError, HookExecutionError, Result, ValidationError},
     git_related::{check_for_git_hooks, get_git_hooks_path},
+    my_clap_theme,
     utils::{format_list, print_error, print_success, print_warning},
     HooksmithError,
 };
 
+use dialoguer::MultiSelect;
+use regex::Regex;
 use serde::Deserialize;
 use std::{
-    fs,
+    fs::{self},
     path::Path,
     process::{Command, ExitStatus},
 };
@@ -344,7 +347,13 @@ impl Hooksmith {
         }
     }
 
-    /// Handle hook not found error
+    /// Get a list of available hooks from the configuration.
+    #[must_use]
+    pub fn get_available_hooks(&self) -> Vec<String> {
+        self.config.hooks.keys().cloned().collect()
+    }
+
+    /// Handle the "hook not found error"
     ///
     /// # Arguments
     /// * `hook_name` - The name of the hook being executed
@@ -365,17 +374,69 @@ impl Hooksmith {
         Err(HookExecutionError::HookNotFound(hook_name.to_string()).into())
     }
 
-    /// Runs a hook by executing its commands.
+    /// List available hooks from the configuration and handle fish completion
     ///
     /// # Arguments
-    /// * `hook_name` - The name of the hook to run.
+    /// * `fish_tokens` - The tokens passed to the command
+    ///
+    /// # Errors
+    /// * If the regex for parsing fish tokens fails.
+    pub fn list_available_hooks(&self, fish_tokens: &str) -> Result<()> {
+        let Ok(already_passed_hooks) = Regex::new("hooksmith run (?P<hooks>.*)?") else {
+            return Err(HookExecutionError::InvalidRegex(
+                "hooksmith run (?P<hooks>.*)?".to_string(),
+            )
+            .into());
+        };
+
+        let mut hooks = Vec::new();
+        for cap in already_passed_hooks.captures_iter(fish_tokens) {
+            if cap["hooks"].is_empty() {
+                continue;
+            }
+
+            hooks.push(cap["hooks"].to_string());
+        }
+
+        let available_hooks = self.config.hooks.keys().collect::<Vec<_>>();
+
+        let available_hooks = available_hooks
+            .iter()
+            .filter(|&hook| !hooks.contains(hook))
+            .map(|&hook| hook.to_string())
+            .collect::<Vec<_>>();
+
+        for hook in available_hooks {
+            println!("{hook}");
+        }
+
+        Ok(())
+    }
+
+    /// Runs multiple hooks by executing their commands.
+    ///
+    /// # Arguments
+    /// * `hook_names` - Vector of hook names to run
     ///
     /// # Errors
     /// * If a command cannot be executed
+    /// * If any hook is not found in the configuration
+    pub fn run_hooks(&self, hook_names: &[String]) -> Result<()> {
+        for hook_name in hook_names {
+            self.run_hook_internal(hook_name)?;
+        }
+        Ok(())
+    }
+
+    /// Internal method to run a single hook
     ///
-    /// # Panics
-    /// * If the hook is not found in the configuration.
-    pub fn run_hook(&self, hook_name: &str) -> Result<()> {
+    /// # Arguments
+    /// * `hook_name` - Name of the hook to run
+    ///
+    /// # Errors
+    /// * If a command cannot be executed
+    /// * If the hook is not found in the configuration
+    fn run_hook_internal(&self, hook_name: &str) -> Result<()> {
         let Some(hook) = self.config.hooks.get(hook_name) else {
             return self.handle_hook_not_found(hook_name);
         };
@@ -401,6 +462,44 @@ impl Hooksmith {
         }
 
         Ok(())
+    }
+
+    /// Runs hooks either interactively or from provided names.
+    ///
+    /// # Arguments
+    /// * `hook_names` - Optional vector of hook names to run. If None, and interactive is true, will prompt for selection.
+    /// * `interactive` - Whether to use interactive selection when `hook_names` is None.
+    ///
+    /// # Errors
+    /// * If a command cannot be executed
+    /// * If hook selection fails
+    /// * If any hook is not found in the configuration
+    pub fn run_hook(&self, hook_names: Option<&[String]>, interactive: bool) -> Result<()> {
+        if interactive {
+            let selected_hooks = self.select_hooks_interactively()?;
+            self.run_hooks(&selected_hooks)
+        } else if let Some(names) = hook_names {
+            if names.is_empty() {
+                return Err(
+                    HookExecutionError::HookNotFound("No hooks specified".to_string()).into(),
+                );
+            }
+
+            // remove duplicate hooks
+            let unique_hooks = names
+                .iter()
+                .cloned()
+                .collect::<std::collections::HashSet<_>>()
+                .into_iter()
+                .collect::<Vec<_>>();
+
+            self.run_hooks(&unique_hooks)
+        } else {
+            Err(HookExecutionError::HookNotFound(
+                "No hook specified and interactive mode is disabled".to_string(),
+            )
+            .into())
+        }
     }
 
     /// Uninstalls a single, given hook by removing its file.
@@ -581,6 +680,37 @@ impl Hooksmith {
             Ok(config) => Ok(config),
             Err(err) => Err(HooksmithError::Config(ConfigError::Parse(err))),
         }
+    }
+
+    /// Select hooks interactively using `dialoguer`.
+    ///
+    /// # Errors
+    /// * If the user cancels the selection, or an error occurs during selection
+    /// * If the selection is empty
+    ///
+    /// # Returns
+    /// * `Vec<String>` - Selected hooks
+    fn select_hooks_interactively(&self) -> Result<Vec<String>> {
+        let hooks = self.get_available_hooks();
+
+        if hooks.is_empty() {
+            return Err(HookExecutionError::HookNotFound(
+                "No hooks available in configuration".to_string(),
+            )
+            .into());
+        }
+
+        let selections = MultiSelect::with_theme(&my_clap_theme::ColorfulTheme::default())
+            .with_prompt("Select hooks to run (Space to select, Enter to confirm)")
+            .items(&hooks)
+            .interact()
+            .map_err(|e| HookExecutionError::HookNotFound(e.to_string()))?;
+
+        if selections.is_empty() {
+            return Err(HookExecutionError::HookNotFound("No hooks selected".to_string()).into());
+        }
+
+        Ok(selections.into_iter().map(|i| hooks[i].clone()).collect())
     }
 }
 

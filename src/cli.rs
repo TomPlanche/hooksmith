@@ -3,15 +3,31 @@ use clap::{Parser, Subcommand};
 /// Commands enum for hooksmith CLI.
 #[derive(Subcommand)]
 pub(crate) enum Command {
+    /// Compare installed hooks with the configuration file
+    #[command(about = "Compare installed hooks with configuration file")]
+    Compare,
+
     /// Install all hooks listed in the config file
     #[command(about = "Install all hooks listed in the config file")]
     Install,
 
+    /// List all hooks in the configuration file
+    #[command(about = "List all hooks in the configuration file")]
+    List {
+        #[arg(default_value = None)]
+        fish_tokens: Option<String>,
+    },
+
     /// Run a specific hook
     #[command(about = "Run a specific hook")]
     Run {
-        /// Name of the hook to run
-        hook_name: String,
+        /// Names of the hooks to run
+        #[arg(default_value = None)]
+        hook_names: Option<Vec<String>>,
+
+        /// Whether to use interactive selection
+        #[arg(short, long, default_value_t = false)]
+        interactive: bool,
     },
 
     /// Uninstall hooks
@@ -21,10 +37,6 @@ pub(crate) enum Command {
         #[arg(default_value = None)]
         hook_name: Option<String>,
     },
-
-    /// Compare installed hooks with the configuration file
-    #[command(about = "Compare installed hooks with configuration file")]
-    Compare,
 
     /// Validate hooks configuration
     #[command(about = "Validate hooks in configuration file against standard Git hooks")]
@@ -71,12 +83,21 @@ mod tests {
         }
 
         // Test with arguments
-        let args = vec!["hooksmith", "run", "pre-commit"];
+        let args = vec!["hooksmith", "run", "pre-commit", "pre-push"];
         let cli = Cli::parse_from(args);
 
         match cli.command {
-            Command::Run { hook_name } => assert_eq!(hook_name, "pre-commit"),
-            _ => panic!("Expected Run command with hook_name=pre-commit"),
+            Command::Run {
+                hook_names,
+                interactive,
+            } => {
+                assert_eq!(
+                    hook_names,
+                    Some(vec!["pre-commit".to_string(), "pre-push".to_string()])
+                );
+                assert!(!interactive);
+            }
+            _ => panic!("Expected Run command with hook_names=[pre-commit, pre-push]"),
         }
     }
 }
