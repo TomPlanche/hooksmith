@@ -40,30 +40,9 @@ jobs:
 
             - name: Generate Release Body
               run: |
-                  cat << EOF > release_body.md
-                  # hooksmith ${GITHUB_REF#refs/tags/v}
-
-                  ## Installation
-
-                  ### Via Cargo (recommended)
-                  ```bash
-                  cargo install hooksmith
-                  ```
-                  ```
-
-                  ### Via Binary Download
-                  Download the appropriate binary for your system from the assets below and extract it to a directory in your PATH.
-
-                  ## Supported Platforms
-                  - Linux (x86_64)
-                  - macOS (Intel x86_64)
-                  - macOS (Apple Silicon arm64)
-
-                  ## SHA256 Checksums
-                  _Will be added during release process_
-
-                  ## Changes
-                  EOF
+                  cp .github/workflows/release_body.md release_body.md
+                  VERSION=${GITHUB_REF#refs/tags/v}
+                  sed -i.bak "s/\${GITHUB_REF#refs\/tags\/v}/${VERSION}/g" release_body.md
 
             - name: Release
               uses: softprops/action-gh-release@v2
