@@ -56,9 +56,6 @@ pub enum HookExecutionError {
 
     #[error("Hook not found: {0}")]
     HookNotFound(String),
-
-    #[error("Invalid regex pattern: {0}")]
-    InvalidRegex(String),
 }
 
 /// Errors related to validation operations.

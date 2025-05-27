@@ -11,13 +11,6 @@ pub(crate) enum Command {
     #[command(about = "Install all hooks listed in the config file")]
     Install,
 
-    /// List all hooks in the configuration file
-    #[command(about = "List all hooks in the configuration file")]
-    List {
-        #[arg(default_value = None)]
-        fish_tokens: Option<String>,
-    },
-
     /// Run a specific hook
     #[command(about = "Run a specific hook")]
     Run {

@@ -28,19 +28,6 @@ fn main() -> Result<()> {
 
             hs.install_hooks()
         }
-        Command::List { fish_tokens } => {
-            if let Some(fish_tokens) = fish_tokens {
-                hs.list_available_hooks(&fish_tokens)
-            } else {
-                let hooks = hs.get_available_hooks();
-
-                for hook in hooks {
-                    println!("{hook}");
-                }
-
-                Ok(())
-            }
-        }
         Command::Uninstall { hook_name } => {
             if hook_name.is_none() {
                 hs.uninstall_hooks()

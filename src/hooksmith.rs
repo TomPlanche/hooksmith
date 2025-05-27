@@ -7,7 +7,6 @@ use crate::{
 };
 
 use dialoguer::MultiSelect;
-use regex::Regex;
 use serde::Deserialize;
 use std::{
     fs::{self},
@@ -372,45 +371,6 @@ impl Hooksmith {
         );
 
         Err(HookExecutionError::HookNotFound(hook_name.to_string()).into())
-    }
-
-    /// List available hooks from the configuration and handle fish completion
-    ///
-    /// # Arguments
-    /// * `fish_tokens` - The tokens passed to the command
-    ///
-    /// # Errors
-    /// * If the regex for parsing fish tokens fails.
-    pub fn list_available_hooks(&self, fish_tokens: &str) -> Result<()> {
-        let Ok(already_passed_hooks) = Regex::new("hooksmith run (?P<hooks>.*)?") else {
-            return Err(HookExecutionError::InvalidRegex(
-                "hooksmith run (?P<hooks>.*)?".to_string(),
-            )
-            .into());
-        };
-
-        let mut hooks = Vec::new();
-        for cap in already_passed_hooks.captures_iter(fish_tokens) {
-            if cap["hooks"].is_empty() {
-                continue;
-            }
-
-            hooks.push(cap["hooks"].to_string());
-        }
-
-        let available_hooks = self.config.hooks.keys().collect::<Vec<_>>();
-
-        let available_hooks = available_hooks
-            .iter()
-            .filter(|&hook| !hooks.contains(hook))
-            .map(|&hook| hook.to_string())
-            .collect::<Vec<_>>();
-
-        for hook in available_hooks {
-            println!("{hook}");
-        }
-
-        Ok(())
     }
 
     /// Runs multiple hooks by executing their commands.

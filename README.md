@@ -93,7 +93,6 @@ Hooksmith is built with minimal but powerful dependencies:
 - `clap`: For robust command-line argument parsing
 - `console` & `dialoguer`: For beautiful terminal interfaces
 - `serde` & `serde_yaml`: For YAML configuration handling
-- `regex`: For pattern matching
 - `thiserror`: For ergonomic error handling
 
 ## 🚀 Quick Start
