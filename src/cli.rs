@@ -1,11 +1,18 @@
 use clap::{Parser, Subcommand};
 
 /// Commands enum for hooksmith CLI.
-#[derive(Subcommand)]
+#[derive(Subcommand, PartialEq)]
 pub(crate) enum Command {
     /// Compare installed hooks with the configuration file
     #[command(about = "Compare installed hooks with configuration file")]
     Compare,
+
+    /// Initialize hooksmith configuration interactively
+    #[command(
+        about = "Initialize hooksmith configuration interactively",
+        alias = "i"
+    )]
+    Init,
 
     /// Install all hooks listed in the config file
     #[command(about = "Install all hooks listed in the config file")]

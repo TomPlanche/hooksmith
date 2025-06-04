@@ -10,7 +10,7 @@ fn main() -> Result<()> {
 
     let config_path = Path::new(&cli.config_path);
 
-    if !config_path.exists() {
+    if !config_path.exists() && !matches!(cli.command, Command::Init) {
         eprintln!(
             "{}",
             ConfigError::NotFound(config_path.to_str().unwrap().to_string())
@@ -19,10 +19,15 @@ fn main() -> Result<()> {
         std::process::exit(1);
     }
 
+    if cli.command == Command::Init {
+        return Hooksmith::init_interactive(config_path, cli.dry_run, cli.verbose);
+    }
+
     let hs = Hooksmith::new_from_config(config_path, cli.dry_run, cli.verbose)?;
 
     match cli.command {
         Command::Compare => hs.compare_hooks(),
+        Command::Init => Hooksmith::init_interactive(config_path, cli.dry_run, cli.verbose),
         Command::Install => {
             hs.validate_hooks_for_install()?;
 
