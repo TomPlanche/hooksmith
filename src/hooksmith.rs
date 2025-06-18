@@ -196,6 +196,154 @@ impl Hooksmith {
         Ok(())
     }
 
+    /// Generates configuration content for a specific hook type
+    ///
+    /// # Arguments
+    /// * `hook` - The name of the hook to generate configuration for
+    ///
+    /// # Returns
+    /// * `String` - The generated configuration content for the hook
+    fn generate_hook_config(hook: &str) -> String {
+        let mut config = String::new();
+        config.push_str(hook);
+        config.push_str(":\n");
+        config.push_str("  commands:\n");
+
+        // Add hook-specific default commands and comments
+        let (echo_msg, examples) = match hook {
+            "pre-commit" => (
+                "Running pre-commit checks...",
+                vec![
+                    "# Add your pre-commit commands here",
+                    "# Examples:",
+                    "# - cargo fmt --all -- --check",
+                    "# - cargo clippy -- --deny warnings",
+                ],
+            ),
+            "pre-push" => (
+                "Running pre-push checks...",
+                vec![
+                    "# Add your pre-push commands here",
+                    "# Examples:",
+                    "# - cargo test",
+                    "# - cargo build --release",
+                ],
+            ),
+            "commit-msg" => (
+                "Validating commit message...",
+                vec![
+                    "# Add your commit message validation here",
+                    "# Example:",
+                    "# - ./scripts/validate-commit-msg.sh $1",
+                ],
+            ),
+            "post-commit" => (
+                "Post-commit actions...",
+                vec!["# Add your post-commit commands here"],
+            ),
+            _ => (
+                &format!("Running {hook} hook...")[..],
+                vec!["# Add your commands here"],
+            ),
+        };
+
+        config.push_str(&format!("    - echo \"{echo_msg}\"\n")[..]);
+
+        for example in examples {
+            config.push_str(&format!("    {example}\n")[..]);
+        }
+
+        config.push('\n');
+
+        config
+    }
+
+    /// Initialize hooksmith configuration interactively.
+    ///
+    /// # Arguments
+    /// * `config_path` - Path where the configuration file will be created
+    /// * `dry_run` - Whether to run in dry run mode
+    /// * `verbose` - Whether to print verbose output
+    ///
+    /// # Errors
+    /// * If the user cancels the selection
+    /// * If there's an error writing the configuration file
+    pub fn init_interactive(config_path: &Path, dry_run: bool, verbose: bool) -> Result<()> {
+        if dry_run {
+            println!("🔄 DRY RUN MODE - No files will be created\n");
+        }
+
+        if verbose {
+            println!("🚀 Initializing hooksmith configuration...");
+        }
+
+        // Check if config file already exists
+        if config_path.exists() && !dry_run {
+            let overwrite = Confirm::with_theme(&my_clap_theme::ColorfulTheme::default())
+                .with_prompt(format!(
+                    "Configuration file '{}' already exists. Overwrite?",
+                    config_path.display()
+                ))
+                .default(false)
+                .interact()
+                .map_err(|e| HookExecutionError::HookNotFound(e.to_string()))?;
+
+            if !overwrite {
+                println!("❌ Initialization cancelled");
+                return Ok(());
+            }
+        }
+
+        // Get all available Git hooks
+        let hook_options: Vec<String> = GIT_HOOKS.iter().map(|&s| s.to_string()).collect();
+
+        // Interactive hook selection
+        let selections = MultiSelect::with_theme(&my_clap_theme::ColorfulTheme::default())
+            .with_prompt("Select hooks to configure (Space to select, Enter to confirm)")
+            .items(&hook_options)
+            .interact()
+            .map_err(|e| HookExecutionError::HookNotFound(e.to_string()))?;
+
+        if selections.is_empty() {
+            println!("❌ No hooks selected. Configuration file not created.");
+            return Ok(());
+        }
+
+        let selected_hooks: Vec<String> = selections
+            .into_iter()
+            .map(|i| hook_options[i].clone())
+            .collect();
+
+        if verbose {
+            println!("📝 Selected hooks: {}", selected_hooks.join(", "));
+        }
+
+        // Create configuration content
+        let config_content: String = selected_hooks
+            .iter()
+            .map(|hook| Self::generate_hook_config(hook))
+            .collect();
+
+        // Write configuration file
+        if dry_run {
+            println!(
+                "🔍 Would create configuration file '{}' with content:",
+                config_path.display()
+            );
+            println!("{config_content}");
+        } else {
+            fs::write(config_path, config_content)?;
+            println!(
+                "✅ Configuration file '{}' created successfully!",
+                config_path.display()
+            );
+            println!("📝 You can now edit the file to customize your hook commands.");
+            println!("🚀 Run 'hooksmith install' to install the configured hooks.");
+        }
+
+        Ok(())
+    }
+
     /// Generates the hook script content.
     /// Creates a shell script that checks for hooksmith and runs the specified hook.
     ///
@@ -671,130 +819,6 @@ impl Hooksmith {
         }
 
         Ok(selections.into_iter().map(|i| hooks[i].clone()).collect())
-    }
-
-    /// Initialize hooksmith configuration interactively.
-    ///
-    /// # Arguments
-    /// * `config_path` - Path where the configuration file will be created
-    /// * `dry_run` - Whether to run in dry run mode
-    /// * `verbose` - Whether to print verbose output
-    ///
-    /// # Errors
-    /// * If the user cancels the selection
-    /// * If there's an error writing the configuration file
-    pub fn init_interactive(config_path: &Path, dry_run: bool, verbose: bool) -> Result<()> {
-        if dry_run {
-            println!("🔄 DRY RUN MODE - No files will be created\n");
-        }
-
-        if verbose {
-            println!("🚀 Initializing hooksmith configuration...");
-        }
-
-        // Check if config file already exists
-        if config_path.exists() && !dry_run {
-            let overwrite = Confirm::with_theme(&my_clap_theme::ColorfulTheme::default())
-                .with_prompt(format!(
-                    "Configuration file '{}' already exists. Overwrite?",
-                    config_path.display()
-                ))
-                .default(false)
-                .interact()
-                .map_err(|e| HookExecutionError::HookNotFound(e.to_string()))?;
-
-            if !overwrite {
-                println!("❌ Initialization cancelled");
-                return Ok(());
-            }
-        }
-
-        // Get all available Git hooks
-        let hook_options: Vec<String> = GIT_HOOKS.iter().map(|&s| s.to_string()).collect();
-
-        // Interactive hook selection
-        let selections = MultiSelect::with_theme(&my_clap_theme::ColorfulTheme::default())
-            .with_prompt("Select hooks to configure (Space to select, Enter to confirm)")
-            .items(&hook_options)
-            .interact()
-            .map_err(|e| HookExecutionError::HookNotFound(e.to_string()))?;
-
-        if selections.is_empty() {
-            println!("❌ No hooks selected. Configuration file not created.");
-            return Ok(());
-        }
-
-        let selected_hooks: Vec<String> = selections
-            .into_iter()
-            .map(|i| hook_options[i].clone())
-            .collect();
-
-        if verbose {
-            println!("📝 Selected hooks: {}", selected_hooks.join(", "));
-        }
-
-        // Create configuration content
-        let mut config_content = String::new();
-
-        for hook in &selected_hooks {
-            config_content.push_str(hook);
-            config_content.push_str(":\n");
-            config_content.push_str("  commands:\n");
-
-            // Add some sensible defaults based on a hook type
-            match hook.as_str() {
-                "pre-commit" => {
-                    config_content.push_str("    - echo \"Running pre-commit checks...\"\n");
-                    config_content.push_str("    # Add your pre-commit commands here\n");
-                    config_content.push_str("    # Examples:\n");
-                    config_content.push_str("    # - cargo fmt --all -- --check\n");
-                    config_content.push_str("    # - cargo clippy -- --deny warnings\n");
-                }
-                "pre-push" => {
-                    config_content.push_str("    - echo \"Running pre-push checks...\"\n");
-                    config_content.push_str("    # Add your pre-push commands here\n");
-                    config_content.push_str("    # Examples:\n");
-                    config_content.push_str("    # - cargo test\n");
-                    config_content.push_str("    # - cargo build --release\n");
-                }
-                "commit-msg" => {
-                    config_content.push_str("    - echo \"Validating commit message...\"\n");
-                    config_content.push_str("    # Add your commit message validation here\n");
-                    config_content.push_str("    # Example:\n");
-                    config_content.push_str("    # - ./scripts/validate-commit-msg.sh $1\n");
-                }
-                "post-commit" => {
-                    config_content.push_str("    - echo \"Post-commit actions...\"\n");
-                    config_content.push_str("    # Add your post-commit commands here\n");
-                }
-                _ => {
-                    config_content.push_str("    - echo \"Running ");
-                    config_content.push_str(hook);
-                    config_content.push_str(" hook...\"\n");
-                    config_content.push_str("    # Add your commands here\n");
-                }
-            }
-            config_content.push('\n');
-        }
-
-        // Write configuration file
-        if dry_run {
-            println!(
-                "🔍 Would create configuration file '{}' with content:",
-                config_path.display()
-            );
-            println!("{config_content}");
-        } else {
-            fs::write(config_path, config_content)?;
-            println!(
-                "✅ Configuration file '{}' created successfully!",
-                config_path.display()
-            );
-            println!("📝 You can now edit the file to customize your hook commands.");
-            println!("🚀 Run 'hooksmith install' to install the configured hooks.");
-        }
-
-        Ok(())
     }
 }
 
