@@ -23,7 +23,7 @@ name = "hooksmith"
 path = "src/lib.rs"
 
 [dependencies]
-clap = { version = "4.5.40", features = ["derive"] }
+clap = { version = "4.5.41", features = ["derive"] }
 console = "0.15.11"
 dialoguer = "0.11.0"
 serde = { version = "1.0.219", features = ["derive"] }
