@@ -569,56 +569,8 @@ impl Hooksmith {
             println!("📋 Running Hook: {hook_name}");
         }
 
-        // New execution model supports global commands and optional path-scoped commands
-        let mut executed_commands_count: usize = 0;
-
-        // If there are path-based blocks, selectively execute those that match changed files
-        if let Some(paths_map) = &hook.paths {
-            if let Some(changed_files) = Self::detect_changed_files(hook_name) {
-                let changed_files: Vec<String> = changed_files;
-
-                // For each configured path prefix, run commands if any changed file matches the prefix
-                for (path_prefix, path_cfg) in paths_map {
-                    let has_match = changed_files.iter().any(|f| f.starts_with(path_prefix));
-                    if !has_match {
-                        continue;
-                    }
-
-                    for (idx, command_str) in path_cfg.commands.iter().enumerate() {
-                        if self.dry_run {
-                            handle_dry_run_with_dir(
-                                command_str,
-                                idx,
-                                path_cfg.commands.len(),
-                                path_cfg.working_directory.as_deref(),
-                            );
-                            executed_commands_count += 1;
-                            continue;
-                        }
-
-                        let working_directory =
-                            path_cfg.working_directory.as_deref().map(Path::new);
-
-                        self.execute_single_command(command_str, hook_name, working_directory);
-                        executed_commands_count += 1;
-                    }
-                }
-            }
-        }
-
-        // Always run global commands if present
-        if let Some(global_cmds) = &hook.commands {
-            for (idx, command_str) in global_cmds.iter().enumerate() {
-                if self.dry_run {
-                    handle_dry_run(command_str, idx, global_cmds.len());
-                    executed_commands_count += 1;
-                    continue;
-                }
-
-                self.execute_single_command(command_str, hook_name, None);
-                executed_commands_count += 1;
-            }
-        }
+        let executed_commands_count = self.run_path_scoped_commands(hook_name, hook)
+            + self.run_global_commands(hook_name, hook);
 
         if self.dry_run {
             println!(
@@ -627,6 +579,76 @@ impl Hooksmith {
         }
 
         Ok(())
+    }
+
+    /// Execute a list of commands with an optional working directory override.
+    /// Returns the number of commands executed (or that would be executed in dry-run).
+    fn run_commands_for_scope(
+        &self,
+        hook_name: &str,
+        commands: &[String],
+        working_directory_override: Option<&str>,
+    ) -> usize {
+        let total_commands = commands.len();
+
+        if self.dry_run {
+            for (idx, command_str) in commands.iter().enumerate() {
+                if working_directory_override.is_some() {
+                    handle_dry_run_with_dir(
+                        command_str,
+                        idx,
+                        total_commands,
+                        working_directory_override,
+                    );
+                } else {
+                    handle_dry_run(command_str, idx, total_commands);
+                }
+            }
+            return total_commands;
+        }
+
+        let working_directory = working_directory_override.map(Path::new);
+        for command_str in commands {
+            self.execute_single_command(command_str, hook_name, working_directory);
+        }
+
+        total_commands
+    }
+
+    /// Execute global commands for a hook, if any, and return how many were executed.
+    fn run_global_commands(&self, hook_name: &str, hook: &Hook) -> usize {
+        match hook.commands.as_deref() {
+            Some(commands) => self.run_commands_for_scope(hook_name, commands, None),
+            None => 0,
+        }
+    }
+
+    /// Execute path-scoped commands that match changed files for the hook.
+    /// Returns the number of commands executed.
+    fn run_path_scoped_commands(&self, hook_name: &str, hook: &Hook) -> usize {
+        let Some(paths_map) = &hook.paths else {
+            return 0;
+        };
+
+        let Some(changed_files) = Self::detect_changed_files(hook_name) else {
+            return 0;
+        };
+
+        let mut executed = 0usize;
+        for (path_prefix, path_cfg) in paths_map {
+            let has_match = changed_files.iter().any(|f| f.starts_with(path_prefix));
+            if !has_match {
+                continue;
+            }
+
+            executed += self.run_commands_for_scope(
+                hook_name,
+                &path_cfg.commands,
+                path_cfg.working_directory.as_deref(),
+            );
+        }
+
+        executed
     }
 
     /// Runs hooks either interactively or from provided names.
