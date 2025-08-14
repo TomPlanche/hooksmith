@@ -24,13 +24,15 @@ pub fn get_git_hooks_path() -> Result<PathBuf, GitError> {
     Ok(PathBuf::from(path))
 }
 
-/// Check if the current directory is a Git repository and if it has hooks.
+/// Check whether the current repository has a hooks directory.
 ///
-/// # Arguments
-/// * `path` - Path to the directory to check
+/// Looks up the hooks directory using `git rev-parse --git-path hooks` and
+/// returns true if that path exists. This does not validate the presence of
+/// specific hook files, only the hooks directory itself.
 ///
 /// # Returns
-/// * `bool` - True if the directory is a Git repository with hooks, false otherwise
+/// `true` if a hooks directory path could be resolved and it exists on disk,
+/// otherwise `false`.
 #[must_use]
 pub fn check_for_git_hooks() -> bool {
     let git_hooks = get_git_hooks_path().ok();

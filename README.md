@@ -33,6 +33,7 @@ __________;"o,-------------......"""""`'-._/(
 - [🔧 Installation](#-installation)
 - [🚀 Quick Start](#-quick-start)
 - [📖 Usage](#-usage)
+ - [🗂️ Path-based Blocks](#-path-based-blocks)
 - [📚 Command Reference](#-command-reference)
 - [🤝 Contributing](#-contributing)
 - [📄 License](#-license)
@@ -169,6 +170,42 @@ Add `--dry-run` to any command to preview changes without applying them:
 ```bash
 hooksmith install --dry-run
 ```
+
+## 🗂️ Path-based Blocks
+
+Define commands that only run when files within specific paths have changed. This lets you scope expensive checks to the parts of the repository they affect.
+
+### YAML structure
+
+```yaml
+pre-commit:
+  # Global commands: always run
+  commands:
+    - cargo fmt --all -- --check
+
+  # Path-based blocks: run only if matching files changed
+  paths:
+    src/:
+      commands:
+        - cargo clippy --workspace -- -D warnings
+
+    crates/api/:
+      working_directory: crates/api
+      commands:
+        - npm ci
+        - npm test
+```
+
+### How it works
+
+- **Matching**: A block runs when any changed file path starts with its key (simple prefix match). Use paths relative to the repo root; prefer a trailing slash (e.g., `src/`).
+- **Supported hooks**: Change detection is implemented for `pre-commit` and `pre-push`.
+  - `pre-commit`: uses `git diff --name-only --cached`.
+  - `pre-push`: diffs `@{u}..HEAD` when upstream exists, otherwise falls back to `HEAD~1..HEAD`.
+- **Order**: All matching path-based blocks run first, then global `commands` run.
+- **Working directory**: Inside a path block, `working_directory` (optional) sets the directory for those commands only. Global commands run in the current directory.
+- **No matches**: If no paths match, only global commands run. Omit `commands` if you want nothing to run in that case.
+- **Multiple matches**: If a file matches several prefixes, all matching blocks run. The order between blocks is not guaranteed; the order of commands within a block is preserved.
 
 ## 📚 Command Reference
 

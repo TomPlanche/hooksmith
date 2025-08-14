@@ -34,12 +34,10 @@ fn main() -> Result<()> {
             hs.install_hooks()
         }
         Command::Uninstall { hook_name } => {
-            if hook_name.is_none() {
-                hs.uninstall_hooks()
+            if let Some(item) = hook_name {
+                hs.uninstall_given_hook(&item)
             } else {
-                let hook_name = hook_name.unwrap();
-
-                hs.uninstall_given_hook(&hook_name)
+                hs.uninstall_hooks()
             }
         }
         Command::Run {
