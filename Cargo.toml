@@ -23,12 +23,12 @@ name = "hooksmith"
 path = "src/lib.rs"
 
 [dependencies]
-clap = { version = "4.5.40", features = ["derive"] }
+clap = { version = "4.5.45", features = ["derive"] }
 console = "0.15.11"
 dialoguer = "0.11.0"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_yaml = "0.9.34"
-thiserror = "2.0.12"
+thiserror = "2.0.14"
 
 [profile.release]
 codegen-units = 1
