@@ -52,10 +52,21 @@ struct Config {
     hooks: std::collections::HashMap<String, Hook>,
 }
 
+/// Path-scoped configuration for a hook.
+#[derive(Deserialize)]
+struct PathScopedConfig {
+    commands: Vec<String>,
+    #[serde(default)]
+    working_directory: Option<String>,
+}
+
 /// Hook structure for hooksmith.
 #[derive(Deserialize)]
 struct Hook {
-    commands: Vec<String>,
+    #[serde(default)]
+    commands: Option<Vec<String>>,
+    #[serde(default)]
+    paths: Option<std::collections::HashMap<String, PathScopedConfig>>, // path prefix -> config
 }
 
 /// Hooksmith structure for managing git hooks.
@@ -461,12 +472,17 @@ impl Hooksmith {
     /// # Arguments
     /// * `command_str` - The command to execute
     /// * `hook_name` - The name of the hook being executed
-    fn execute_single_command(&self, command_str: &str, hook_name: &str) {
+    fn execute_single_command(
+        &self,
+        command_str: &str,
+        hook_name: &str,
+        working_directory: Option<&Path>,
+    ) {
         if self.verbose && !self.dry_run {
             println!("  - Running command: {command_str}");
         }
 
-        match self.execute_command(command_str) {
+        match self.execute_command(command_str, working_directory) {
             Ok(status) if status.success() => {
                 if self.verbose && !self.dry_run {
                     println!("\n  ✅ Command completed successfully");
@@ -553,19 +569,60 @@ impl Hooksmith {
             println!("📋 Running Hook: {hook_name}");
         }
 
-        for (idx, command_str) in hook.commands.iter().enumerate() {
-            if self.dry_run {
-                handle_dry_run(command_str, idx, hook.commands.len());
-                continue;
-            }
+        // New execution model supports global commands and optional path-scoped commands
+        let mut executed_commands_count: usize = 0;
 
-            self.execute_single_command(command_str, hook_name);
+        // If there are path-based blocks, selectively execute those that match changed files
+        if let Some(paths_map) = &hook.paths {
+            if let Some(changed_files) = Self::detect_changed_files(hook_name) {
+                let changed_files: Vec<String> = changed_files;
+
+                // For each configured path prefix, run commands if any changed file matches the prefix
+                for (path_prefix, path_cfg) in paths_map {
+                    let has_match = changed_files.iter().any(|f| f.starts_with(path_prefix));
+                    if !has_match {
+                        continue;
+                    }
+
+                    for (idx, command_str) in path_cfg.commands.iter().enumerate() {
+                        if self.dry_run {
+                            handle_dry_run_with_dir(
+                                command_str,
+                                idx,
+                                path_cfg.commands.len(),
+                                path_cfg.working_directory.as_deref(),
+                            );
+                            executed_commands_count += 1;
+                            continue;
+                        }
+
+                        let working_directory =
+                            path_cfg.working_directory.as_deref().map(Path::new);
+
+                        self.execute_single_command(command_str, hook_name, working_directory);
+                        executed_commands_count += 1;
+                    }
+                }
+            }
+        }
+
+        // Always run global commands if present
+        if let Some(global_cmds) = &hook.commands {
+            for (idx, command_str) in global_cmds.iter().enumerate() {
+                if self.dry_run {
+                    handle_dry_run(command_str, idx, global_cmds.len());
+                    executed_commands_count += 1;
+                    continue;
+                }
+
+                self.execute_single_command(command_str, hook_name, None);
+                executed_commands_count += 1;
+            }
         }
 
         if self.dry_run {
             println!(
-                "🏁 Dry run completed. {} commands would be executed",
-                hook.commands.len()
+                "🏁 Dry run completed. {executed_commands_count} command(s) would be executed",
             );
         }
 
@@ -750,7 +807,11 @@ impl Hooksmith {
     ///
     /// # Errors
     /// * If a command cannot be executed
-    fn execute_command(&self, command: &str) -> Result<ExitStatus> {
+    fn execute_command(
+        &self,
+        command: &str,
+        working_directory: Option<&Path>,
+    ) -> Result<ExitStatus> {
         if self.dry_run {
             println!("🔍 Would execute: {command}");
 
@@ -767,7 +828,12 @@ impl Hooksmith {
                 Ok(ExitStatusExt::from_raw(0))
             }
         } else {
-            Ok(Command::new("sh").arg("-c").arg(command).status()?)
+            let mut cmd = Command::new("sh");
+            cmd.arg("-c").arg(command);
+            if let Some(dir) = working_directory {
+                cmd.current_dir(dir);
+            }
+            Ok(cmd.status()?)
         }
     }
 
@@ -834,4 +900,116 @@ fn handle_dry_run(command_str: &str, idx: usize, total_commands: usize) {
     }
 
     println!();
+}
+
+/// Handles dry run output for a command with an explicit working directory
+fn handle_dry_run_with_dir(
+    command_str: &str,
+    idx: usize,
+    total_commands: usize,
+    working_directory: Option<&str>,
+) {
+    println!("Step {} of {}:", idx + 1, total_commands);
+    println!("  Command: {command_str}");
+
+    if let Some(dir) = working_directory {
+        println!("  Working directory (override): {dir}");
+    } else if let Ok(dir) = std::env::current_dir() {
+        println!("  Working directory: {}", dir.display());
+    }
+
+    println!();
+}
+
+impl Hooksmith {
+    /// Detect changed files for a given hook when possible.
+    ///
+    /// Behavior by hook name:
+    /// - `pre-commit`: Returns the list of staged files using `git diff --name-only --cached`.
+    /// - `pre-push`: Attempts to diff against the configured upstream with `@{u}..HEAD`.
+    ///   If no upstream is configured or that diff fails, falls back to `HEAD~1..HEAD`.
+    ///
+    /// # Arguments
+    /// * `hook_name` - The hook to compute changed files for.
+    ///
+    /// # Returns
+    /// * `Some(Vec<String>)` when detection succeeds (the vector may be empty if no files changed).
+    /// * `None` if the hook is not supported or if detection fails (e.g., not a Git repo, no upstream, or the git command fails).
+    ///
+    /// # Notes
+    /// This helper is best-effort and never returns an error. Callers should treat `None`
+    /// as "path-scoped execution not applicable" and continue with global commands.
+    fn detect_changed_files(hook_name: &str) -> Option<Vec<String>> {
+        match hook_name {
+            "pre-commit" => Self::git_diff_name_only(&["--cached"]).ok(),
+            "pre-push" => {
+                // Try to diff against upstream; fall back to last commit range
+                if let Ok(files) = Self::git_diff_upstream_range() {
+                    Some(files)
+                } else {
+                    Self::git_diff_name_only(&["HEAD~1..HEAD"]).ok()
+                }
+            }
+            _ => None,
+        }
+    }
+
+    /// Compute the list of files changed relative to the configured upstream branch.
+    ///
+    /// Attempts to diff `@{u}..HEAD` if an upstream is configured. If no upstream is
+    /// configured, returns an error so callers can fall back to an alternative range.
+    ///
+    /// # Errors
+    /// * If no upstream is configured or if running the underlying `git` command fails.
+    fn git_diff_upstream_range() -> Result<Vec<String>> {
+        // Check if upstream exists; if so, diff against it
+        let upstream_check = Command::new("git")
+            .args(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"])
+            .output();
+
+        if let Ok(output) = upstream_check {
+            if output.status.success() {
+                return Self::git_diff_name_only(&["@{u}..HEAD"]);
+            }
+        }
+
+        Err(HookExecutionError::HookNotFound("No upstream configured".to_string()).into())
+    }
+
+    /// Run `git diff --name-only` with the provided arguments and return changed file paths.
+    ///
+    /// # Arguments
+    /// * `args` - Additional arguments or revision ranges to pass to `git diff`.
+    ///
+    /// # Returns
+    /// A vector of path strings for files reported by `git diff --name-only`.
+    ///
+    /// # Errors
+    /// * If the underlying `git diff` command fails.
+    fn git_diff_name_only(args: &[&str]) -> Result<Vec<String>> {
+        let mut cmd = Command::new("git");
+        cmd.arg("diff").arg("--name-only");
+
+        for a in args {
+            cmd.arg(a);
+        }
+
+        let output = cmd.output()?;
+
+        if !output.status.success() {
+            return Err(HookExecutionError::HookNotFound(
+                "Failed to compute changed files".to_string(),
+            )
+            .into());
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let files = stdout
+            .lines()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>();
+
+        Ok(files)
+    }
 }
