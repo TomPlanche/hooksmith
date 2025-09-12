@@ -33,7 +33,8 @@ __________;"o,-------------......"""""`'-._/(
 - [🔧 Installation](#-installation)
 - [🚀 Quick Start](#-quick-start)
 - [📖 Usage](#-usage)
- - [🗂️ Path-based Blocks](#-path-based-blocks)
+- [⏱️ Performance Monitoring](#️-performance-monitoring)
+- [🗂️ Path-based Blocks](#-path-based-blocks)
 - [📚 Command Reference](#-command-reference)
 - [🤝 Contributing](#-contributing)
 - [📄 License](#-license)
@@ -42,6 +43,7 @@ __________;"o,-------------......"""""`'-._/(
 
 - **⚙️ Automatic Installation** - Set up hooks through your build scripts with `build.rs`
 - **🧪 Local Testing** - Run hooks manually without triggering Git events
+- **⏱️ Performance Monitoring** - Track execution times for hooks and individual commands
 - **🔍 Dry Run Mode** - Preview what would happen without making changes
 - **✅ Hook Validation** - Ensure your hooks comply with Git standards
 - **📝 Simple Configuration** - Define all your hooks in a clean YAML format
@@ -154,6 +156,9 @@ hooksmith install
 # Run a specific hook manually
 hooksmith run pre-commit
 
+# Run a hook with performance monitoring
+hooksmith run pre-commit --profile
+
 # Uninstall all hooks or a specific one
 hooksmith uninstall
 hooksmith uninstall pre-commit
@@ -170,6 +175,38 @@ Add `--dry-run` to any command to preview changes without applying them:
 ```bash
 hooksmith install --dry-run
 ```
+
+## ⏱️ Performance Monitoring
+
+Hooksmith includes built-in performance monitoring to help you optimize your hook execution times. Use the `--profile` flag with the `run` command to see detailed timing information:
+
+```bash
+hooksmith run pre-commit --profile
+```
+
+This will show you:
+- Individual command execution times
+- Total hook execution time
+- Overall execution time when running multiple hooks
+
+### Example Output
+
+```
+⏱️  Hook execution summary:
+  Hook 'pre-commit' (768ms)
+    cargo fmt --all -- --check: 146ms
+    cargo clippy --workspace --release --all-targets --all-fe...: 394ms
+    typos: 226ms
+  Total: 768ms
+```
+
+### Use Cases
+
+Performance monitoring is particularly useful for:
+- **Identifying slow commands** in your hook chains
+- **Optimizing CI/CD pipelines** by understanding bottlenecks
+- **Debugging performance issues** in complex hook configurations
+- **Tracking improvements** after optimizing your toolchain
 
 ## 🗂️ Path-based Blocks
 
@@ -213,6 +250,7 @@ pre-commit:
 |---------|-------------|
 | `install` | Install all hooks from configuration file |
 | `run <hook>` | Run a specific hook manually |
+| `run <hook> --profile` | Run a hook with performance timing information |
 | `uninstall [hook]` | Uninstall all hooks or a specific one |
 | `compare` | Compare installed hooks with configuration |
 | `validate` | Validate hook configuration against Git standards |
@@ -225,6 +263,13 @@ pre-commit:
 | `--dry-run` | Preview changes without applying them |
 | `--verbose` | Show detailed output during execution |
 | `--help` | Display help information |
+
+### Run Command Options
+
+| Option | Description |
+|--------|-------------|
+| `--interactive` or `-i` | Interactively select hooks to run |
+| `--profile` or `-p` | Show performance timing for hook execution |
 
 ## 🤝 Contributing
 

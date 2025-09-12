@@ -12,6 +12,7 @@ use std::{
     fs::{self},
     path::Path,
     process::{Command, ExitStatus},
+    time::{Duration, Instant},
 };
 
 const GIT_HOOKS: [&str; 28] = [
@@ -67,6 +68,28 @@ struct Hook {
     commands: Option<Vec<String>>,
     #[serde(default)]
     paths: Option<std::collections::HashMap<String, PathScopedConfig>>, // path prefix -> config
+}
+
+/// Timing information for a single command execution.
+#[derive(Debug, Clone)]
+pub struct CommandTiming {
+    pub command: String,
+    pub duration: Duration,
+}
+
+/// Timing information for a hook execution.
+#[derive(Debug, Clone)]
+pub struct HookTiming {
+    pub hook_name: String,
+    pub commands: Vec<CommandTiming>,
+    pub total_duration: Duration,
+}
+
+/// Collection of timing information for multiple hooks.
+#[derive(Debug, Clone)]
+pub struct TimingReport {
+    pub hooks: Vec<HookTiming>,
+    pub total_duration: Duration,
 }
 
 /// Hooksmith structure for managing git hooks.
@@ -537,6 +560,40 @@ impl Hooksmith {
         Err(HookExecutionError::HookNotFound(hook_name.to_string()).into())
     }
 
+    /// Runs multiple hooks with timing information.
+    ///
+    /// # Arguments
+    /// * `hook_names` - Vector of hook names to run
+    ///
+    /// # Errors
+    /// * If a command cannot be executed
+    /// * If any hook is not found in the configuration
+    pub fn run_hooks_with_timing(&self, hook_names: &[String]) -> Result<()> {
+        let start_time = Instant::now();
+        let mut hook_timings = Vec::new();
+
+        for hook_name in hook_names {
+            let hook_start = Instant::now();
+            let hook_timing = self.run_hook_internal_with_timing(hook_name)?;
+            let hook_duration = hook_start.elapsed();
+
+            // Update the hook timing with the actual total duration
+            let mut updated_timing = hook_timing;
+            updated_timing.total_duration = hook_duration;
+            hook_timings.push(updated_timing);
+        }
+
+        let total_duration = start_time.elapsed();
+
+        let timing_report = TimingReport {
+            hooks: hook_timings,
+            total_duration,
+        };
+
+        Self::print_timing_report(self, &timing_report);
+        Ok(())
+    }
+
     /// Runs multiple hooks by executing their commands.
     ///
     /// # Arguments
@@ -581,6 +638,52 @@ impl Hooksmith {
         Ok(())
     }
 
+    /// Internal method to run a single hook with timing information
+    ///
+    /// # Arguments
+    /// * `hook_name` - Name of the hook to run
+    ///
+    /// # Errors
+    /// * If a command cannot be executed
+    /// * If the hook is not found in the configuration
+    fn run_hook_internal_with_timing(&self, hook_name: &str) -> Result<HookTiming> {
+        let Some(hook) = self.config.hooks.get(hook_name) else {
+            self.handle_hook_not_found(hook_name)?;
+            // This should never be reached due to the error above
+            return Ok(HookTiming {
+                hook_name: hook_name.to_string(),
+                commands: Vec::new(),
+                total_duration: Duration::from_secs(0),
+            });
+        };
+
+        if self.verbose && !self.dry_run {
+            println!("📋 Running Hook: {hook_name}");
+        }
+
+        let mut command_timings = Vec::new();
+
+        // Run path-scoped commands with timing
+        let path_timings = self.run_path_scoped_commands_with_timing(hook_name, hook);
+        command_timings.extend(path_timings);
+
+        // Run global commands with timing
+        let global_timings = self.run_global_commands_with_timing(hook_name, hook);
+        command_timings.extend(global_timings);
+
+        let total_commands = command_timings.len();
+
+        if self.dry_run {
+            println!("🏁 Dry run completed. {total_commands} command(s) would be executed",);
+        }
+
+        Ok(HookTiming {
+            hook_name: hook_name.to_string(),
+            commands: command_timings,
+            total_duration: Duration::from_secs(0), // Will be updated by caller
+        })
+    }
+
     /// Execute a list of commands with an optional working directory override.
     /// Returns the number of commands executed (or that would be executed in dry-run).
     fn run_commands_for_scope(
@@ -615,11 +718,66 @@ impl Hooksmith {
         total_commands
     }
 
+    /// Execute a list of commands with timing information.
+    /// Returns timing information for each command executed.
+    fn run_commands_for_scope_with_timing(
+        &self,
+        hook_name: &str,
+        commands: &[String],
+        working_directory_override: Option<&str>,
+    ) -> Vec<CommandTiming> {
+        let mut timings = Vec::new();
+        let total_commands = commands.len();
+
+        if self.dry_run {
+            for (idx, command_str) in commands.iter().enumerate() {
+                if working_directory_override.is_some() {
+                    handle_dry_run_with_dir(
+                        command_str,
+                        idx,
+                        total_commands,
+                        working_directory_override,
+                    );
+                } else {
+                    handle_dry_run(command_str, idx, total_commands);
+                }
+                // For dry run, we still add timing entries with zero duration
+                timings.push(CommandTiming {
+                    command: command_str.clone(),
+                    duration: Duration::from_secs(0),
+                });
+            }
+            return timings;
+        }
+
+        let working_directory = working_directory_override.map(Path::new);
+        for command_str in commands {
+            let start_time = Instant::now();
+            self.execute_single_command(command_str, hook_name, working_directory);
+            let duration = start_time.elapsed();
+
+            timings.push(CommandTiming {
+                command: command_str.clone(),
+                duration,
+            });
+        }
+
+        timings
+    }
+
     /// Execute global commands for a hook, if any, and return how many were executed.
     fn run_global_commands(&self, hook_name: &str, hook: &Hook) -> usize {
         match hook.commands.as_deref() {
             Some(commands) => self.run_commands_for_scope(hook_name, commands, None),
             None => 0,
+        }
+    }
+
+    /// Execute global commands for a hook with timing, if any, and return timing information.
+    fn run_global_commands_with_timing(&self, hook_name: &str, hook: &Hook) -> Vec<CommandTiming> {
+        match hook.commands.as_deref() {
+            Some(commands) => self.run_commands_for_scope_with_timing(hook_name, commands, None),
+            None => Vec::new(),
         }
     }
 
@@ -651,20 +809,63 @@ impl Hooksmith {
         executed
     }
 
+    /// Execute path-scoped commands that match changed files for the hook with timing.
+    /// Returns timing information for commands executed.
+    fn run_path_scoped_commands_with_timing(
+        &self,
+        hook_name: &str,
+        hook: &Hook,
+    ) -> Vec<CommandTiming> {
+        let Some(paths_map) = &hook.paths else {
+            return Vec::new();
+        };
+
+        let Some(changed_files) = Self::detect_changed_files(hook_name) else {
+            return Vec::new();
+        };
+
+        let mut timings = Vec::new();
+        for (path_prefix, path_cfg) in paths_map {
+            let has_match = changed_files.iter().any(|f| f.starts_with(path_prefix));
+            if !has_match {
+                continue;
+            }
+
+            let mut command_timings = self.run_commands_for_scope_with_timing(
+                hook_name,
+                &path_cfg.commands,
+                path_cfg.working_directory.as_deref(),
+            );
+            timings.append(&mut command_timings);
+        }
+
+        timings
+    }
+
     /// Runs hooks either interactively or from provided names.
     ///
     /// # Arguments
     /// * `hook_names` - Optional vector of hook names to run. If None, and interactive is true, will prompt for selection.
     /// * `interactive` - Whether to use interactive selection when `hook_names` is None.
+    /// * `profile` - Whether to enable performance profiling and show timing information.
     ///
     /// # Errors
     /// * If a command cannot be executed
     /// * If hook selection fails
     /// * If any hook is not found in the configuration
-    pub fn run_hook(&self, hook_names: Option<&[String]>, interactive: bool) -> Result<()> {
+    pub fn run_hook(
+        &self,
+        hook_names: Option<&[String]>,
+        interactive: bool,
+        profile: bool,
+    ) -> Result<()> {
         if interactive {
             let selected_hooks = self.select_hooks_interactively()?;
-            self.run_hooks(&selected_hooks)
+            if profile {
+                self.run_hooks_with_timing(&selected_hooks)
+            } else {
+                self.run_hooks(&selected_hooks)
+            }
         } else if let Some(names) = hook_names {
             if names.is_empty() {
                 return Err(
@@ -680,7 +881,11 @@ impl Hooksmith {
                 .into_iter()
                 .collect::<Vec<_>>();
 
-            self.run_hooks(&unique_hooks)
+            if profile {
+                self.run_hooks_with_timing(&unique_hooks)
+            } else {
+                self.run_hooks(&unique_hooks)
+            }
         } else {
             Err(HookExecutionError::HookNotFound(
                 "No hook specified and interactive mode is disabled".to_string(),
@@ -1033,5 +1238,66 @@ impl Hooksmith {
             .collect::<Vec<_>>();
 
         Ok(files)
+    }
+
+    /// Print a formatted timing report showing execution times for hooks and commands.
+    ///
+    /// # Arguments
+    /// * `timing_report` - The timing report to print
+    fn print_timing_report(_: &Self, timing_report: &TimingReport) {
+        if timing_report.hooks.is_empty() {
+            return;
+        }
+
+        println!("\n⏱️  Hook execution summary:");
+
+        for hook_timing in &timing_report.hooks {
+            if hook_timing.commands.is_empty() {
+                continue;
+            }
+
+            println!(
+                "  Hook '{}' ({})",
+                hook_timing.hook_name,
+                Self::format_duration(&hook_timing.total_duration)
+            );
+
+            for command_timing in &hook_timing.commands {
+                // Truncate long commands for display
+                let display_command = if command_timing.command.len() > 60 {
+                    format!("{}...", &command_timing.command[..57])
+                } else {
+                    command_timing.command.clone()
+                };
+
+                println!(
+                    "    {}: {}",
+                    display_command,
+                    Self::format_duration(&command_timing.duration)
+                );
+            }
+        }
+
+        println!(
+            "  Total: {}",
+            Self::format_duration(&timing_report.total_duration)
+        );
+    }
+
+    /// Format a duration for display in the timing report.
+    ///
+    /// # Arguments
+    /// * `duration` - The duration to format
+    ///
+    /// # Returns
+    /// A formatted string representation of the duration
+    fn format_duration(duration: &Duration) -> String {
+        let total_millis = duration.as_millis();
+
+        if total_millis >= 1000 {
+            format!("{:.1}s", duration.as_secs_f64())
+        } else {
+            format!("{total_millis}ms")
+        }
     }
 }
