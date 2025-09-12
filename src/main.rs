@@ -43,13 +43,14 @@ fn main() -> Result<()> {
         Command::Run {
             hook_names,
             interactive,
+            profile,
         } => {
             if hook_names.is_none() && !interactive {
                 eprintln!("Error: Either provide hook names or use --interactive (-i) flag");
                 std::process::exit(1);
             }
 
-            hs.run_hook(hook_names.as_deref(), interactive)
+            hs.run_hook(hook_names.as_deref(), interactive, profile)
         }
         Command::Validate => hs.validate_hooks(),
     }

@@ -28,6 +28,10 @@ pub(crate) enum Command {
         /// Whether to use interactive selection
         #[arg(short, long, default_value_t = false)]
         interactive: bool,
+
+        /// Show performance timing for hook execution
+        #[arg(short, long, default_value_t = false)]
+        profile: bool,
     },
 
     /// Uninstall hooks
@@ -90,12 +94,14 @@ mod tests {
             Command::Run {
                 hook_names,
                 interactive,
+                profile,
             } => {
                 assert_eq!(
                     hook_names,
                     Some(vec!["pre-commit".to_string(), "pre-push".to_string()])
                 );
                 assert!(!interactive);
+                assert!(!profile);
             }
             _ => panic!("Expected Run command with hook_names=[pre-commit, pre-push]"),
         }
