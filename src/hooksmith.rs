@@ -7,7 +7,7 @@ use crate::{
 };
 
 use dialoguer::{Confirm, MultiSelect};
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 use std::{
     fs::{self},
     path::Path,
@@ -46,6 +46,123 @@ const GIT_HOOKS: [&str; 28] = [
     "post-index-change",
 ];
 
+/// Represents a command that can be either a simple string or a named command
+#[derive(Debug, Clone)]
+pub struct HookCommand {
+    pub name: Option<String>,
+    pub command: String,
+}
+
+impl HookCommand {
+    /// Create a new unnamed command
+    pub fn new_unnamed(command: String) -> Self {
+        Self {
+            name: None,
+            command,
+        }
+    }
+
+    /// Create a new named command
+    pub fn new_named(name: String, command: String) -> Self {
+        Self {
+            name: Some(name),
+            command,
+        }
+    }
+}
+
+/// Custom deserializer for commands that supports both string and named formats
+fn deserialize_commands<'de, D>(deserializer: D) -> std::result::Result<Vec<HookCommand>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    use serde::de::{Error, SeqAccess, Visitor};
+    use serde_yaml::Value;
+
+    struct CommandsVisitor;
+
+    impl<'de> Visitor<'de> for CommandsVisitor {
+        type Value = Vec<HookCommand>;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("a sequence of commands")
+        }
+
+        fn visit_seq<A>(self, mut seq: A) -> std::result::Result<Self::Value, A::Error>
+        where
+            A: SeqAccess<'de>,
+        {
+            let mut commands = Vec::new();
+
+            while let Some(value) = seq.next_element::<Value>()? {
+                match value {
+                    // Handle string commands: "cargo fmt --all -- --check"
+                    Value::String(cmd) => {
+                        commands.push(HookCommand::new_unnamed(cmd));
+                    }
+                    // Handle named commands: "clippy-linter": "cargo clippy ..."
+                    Value::Mapping(map) => {
+                        for (key, val) in map {
+                            if let (Value::String(name), Value::String(command)) = (key, val) {
+                                commands.push(HookCommand::new_named(name, command));
+                            } else {
+                                return Err(A::Error::custom(
+                                    "Named commands must have string keys and values",
+                                ));
+                            }
+                        }
+                    }
+                    _ => {
+                        return Err(A::Error::custom(
+                            "Commands must be strings or named command objects",
+                        ));
+                    }
+                }
+            }
+
+            Ok(commands)
+        }
+    }
+
+    deserializer.deserialize_seq(CommandsVisitor)
+}
+
+/// Custom deserializer for optional commands
+fn deserialize_optional_commands<'de, D>(
+    deserializer: D,
+) -> std::result::Result<Option<Vec<HookCommand>>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    use serde::de::Visitor;
+
+    struct OptionalCommandsVisitor;
+
+    impl<'de> Visitor<'de> for OptionalCommandsVisitor {
+        type Value = Option<Vec<HookCommand>>;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("an optional sequence of commands")
+        }
+
+        fn visit_none<E>(self) -> std::result::Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(None)
+        }
+
+        fn visit_some<D>(self, deserializer: D) -> std::result::Result<Self::Value, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            deserialize_commands(deserializer).map(Some)
+        }
+    }
+
+    deserializer.deserialize_option(OptionalCommandsVisitor)
+}
+
 /// Configuration structure for hooksmith.
 #[derive(Deserialize)]
 struct Config {
@@ -56,7 +173,8 @@ struct Config {
 /// Path-scoped configuration for a hook.
 #[derive(Deserialize)]
 struct PathScopedConfig {
-    commands: Vec<String>,
+    #[serde(deserialize_with = "deserialize_commands")]
+    commands: Vec<HookCommand>,
     #[serde(default)]
     working_directory: Option<String>,
 }
@@ -65,7 +183,8 @@ struct PathScopedConfig {
 #[derive(Deserialize)]
 struct Hook {
     #[serde(default)]
-    commands: Option<Vec<String>>,
+    #[serde(deserialize_with = "deserialize_optional_commands")]
+    commands: Option<Vec<HookCommand>>,
     #[serde(default)]
     paths: Option<std::collections::HashMap<String, PathScopedConfig>>, // path prefix -> config
 }
@@ -74,6 +193,7 @@ struct Hook {
 #[derive(Debug, Clone)]
 pub struct CommandTiming {
     pub command: String,
+    pub name: Option<String>,
     pub duration: Duration,
 }
 
@@ -493,19 +613,24 @@ impl Hooksmith {
     /// Executes a single command and handles its output
     ///
     /// # Arguments
-    /// * `command_str` - The command to execute
+    /// * `hook_command` - The command to execute
     /// * `hook_name` - The name of the hook being executed
     fn execute_single_command(
         &self,
-        command_str: &str,
+        hook_command: &HookCommand,
         hook_name: &str,
         working_directory: Option<&Path>,
     ) {
         if self.verbose && !self.dry_run {
-            println!("  - Running command: {command_str}");
+            let display = if let Some(name) = &hook_command.name {
+                format!("{} ({})", name, hook_command.command)
+            } else {
+                hook_command.command.clone()
+            };
+            println!("  - Running command: {display}");
         }
 
-        match self.execute_command(command_str, working_directory) {
+        match self.execute_command(&hook_command.command, working_directory) {
             Ok(status) if status.success() => {
                 if self.verbose && !self.dry_run {
                     println!("\n  ✅ Command completed successfully");
@@ -689,30 +814,30 @@ impl Hooksmith {
     fn run_commands_for_scope(
         &self,
         hook_name: &str,
-        commands: &[String],
+        commands: &[HookCommand],
         working_directory_override: Option<&str>,
     ) -> usize {
         let total_commands = commands.len();
 
         if self.dry_run {
-            for (idx, command_str) in commands.iter().enumerate() {
+            for (idx, hook_command) in commands.iter().enumerate() {
                 if working_directory_override.is_some() {
                     handle_dry_run_with_dir(
-                        command_str,
+                        hook_command,
                         idx,
                         total_commands,
                         working_directory_override,
                     );
                 } else {
-                    handle_dry_run(command_str, idx, total_commands);
+                    handle_dry_run(hook_command, idx, total_commands);
                 }
             }
             return total_commands;
         }
 
         let working_directory = working_directory_override.map(Path::new);
-        for command_str in commands {
-            self.execute_single_command(command_str, hook_name, working_directory);
+        for hook_command in commands {
+            self.execute_single_command(hook_command, hook_name, working_directory);
         }
 
         total_commands
@@ -723,27 +848,28 @@ impl Hooksmith {
     fn run_commands_for_scope_with_timing(
         &self,
         hook_name: &str,
-        commands: &[String],
+        commands: &[HookCommand],
         working_directory_override: Option<&str>,
     ) -> Vec<CommandTiming> {
         let mut timings = Vec::new();
         let total_commands = commands.len();
 
         if self.dry_run {
-            for (idx, command_str) in commands.iter().enumerate() {
+            for (idx, hook_command) in commands.iter().enumerate() {
                 if working_directory_override.is_some() {
                     handle_dry_run_with_dir(
-                        command_str,
+                        hook_command,
                         idx,
                         total_commands,
                         working_directory_override,
                     );
                 } else {
-                    handle_dry_run(command_str, idx, total_commands);
+                    handle_dry_run(hook_command, idx, total_commands);
                 }
                 // For dry run, we still add timing entries with zero duration
                 timings.push(CommandTiming {
-                    command: command_str.clone(),
+                    command: hook_command.command.clone(),
+                    name: hook_command.name.clone(),
                     duration: Duration::from_secs(0),
                 });
             }
@@ -751,13 +877,14 @@ impl Hooksmith {
         }
 
         let working_directory = working_directory_override.map(Path::new);
-        for command_str in commands {
+        for hook_command in commands {
             let start_time = Instant::now();
-            self.execute_single_command(command_str, hook_name, working_directory);
+            self.execute_single_command(hook_command, hook_name, working_directory);
             let duration = start_time.elapsed();
 
             timings.push(CommandTiming {
-                command: command_str.clone(),
+                command: hook_command.command.clone(),
+                name: hook_command.name.clone(),
                 duration,
             });
         }
@@ -767,7 +894,7 @@ impl Hooksmith {
 
     /// Execute global commands for a hook, if any, and return how many were executed.
     fn run_global_commands(&self, hook_name: &str, hook: &Hook) -> usize {
-        match hook.commands.as_deref() {
+        match &hook.commands {
             Some(commands) => self.run_commands_for_scope(hook_name, commands, None),
             None => 0,
         }
@@ -775,7 +902,7 @@ impl Hooksmith {
 
     /// Execute global commands for a hook with timing, if any, and return timing information.
     fn run_global_commands_with_timing(&self, hook_name: &str, hook: &Hook) -> Vec<CommandTiming> {
-        match hook.commands.as_deref() {
+        match &hook.commands {
             Some(commands) => self.run_commands_for_scope_with_timing(hook_name, commands, None),
             None => Vec::new(),
         }
@@ -1116,11 +1243,15 @@ impl Hooksmith {
 }
 
 /// Handles the dry run output for a command
-fn handle_dry_run(command_str: &str, idx: usize, total_commands: usize) {
+fn handle_dry_run(hook_command: &HookCommand, idx: usize, total_commands: usize) {
     let current_dir = std::env::current_dir();
 
     println!("Step {} of {}:", idx + 1, total_commands);
-    println!("  Command: {command_str}");
+    if let Some(name) = &hook_command.name {
+        println!("  Command: {} ({})", name, hook_command.command);
+    } else {
+        println!("  Command: {}", hook_command.command);
+    }
 
     if let Ok(dir) = current_dir {
         println!("  Working directory: {}", dir.display());
@@ -1131,13 +1262,17 @@ fn handle_dry_run(command_str: &str, idx: usize, total_commands: usize) {
 
 /// Handles dry run output for a command with an explicit working directory
 fn handle_dry_run_with_dir(
-    command_str: &str,
+    hook_command: &HookCommand,
     idx: usize,
     total_commands: usize,
     working_directory: Option<&str>,
 ) {
     println!("Step {} of {}:", idx + 1, total_commands);
-    println!("  Command: {command_str}");
+    if let Some(name) = &hook_command.name {
+        println!("  Command: {} ({})", name, hook_command.command);
+    } else {
+        println!("  Command: {}", hook_command.command);
+    }
 
     if let Some(dir) = working_directory {
         println!("  Working directory (override): {dir}");
@@ -1263,8 +1398,14 @@ impl Hooksmith {
             );
 
             for command_timing in &hook_timing.commands {
-                // Truncate long commands for display
-                let display_command = if command_timing.command.len() > 60 {
+                // Use command name if available, otherwise use the command itself
+                let display_command = if let Some(name) = &command_timing.name {
+                    if name.len() > 60 {
+                        format!("{}...", &name[..57])
+                    } else {
+                        name.clone()
+                    }
+                } else if command_timing.command.len() > 60 {
                     format!("{}...", &command_timing.command[..57])
                 } else {
                     command_timing.command.clone()
