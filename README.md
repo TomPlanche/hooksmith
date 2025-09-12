@@ -147,6 +147,30 @@ commit-msg:
     - ./scripts/verify-commit-message.sh $1
 ```
 
+#### Named Commands
+
+You can optionally assign names to your commands for better readability and clearer output. This is especially useful for long or complex commands:
+
+```yaml
+pre-commit:
+  commands:
+    - cargo fmt --all -- --check
+    - clippy-linter: cargo clippy --workspace --release --all-targets --all-features -- --deny warnings -D warnings -W clippy::correctness -W clippy::suspicious -W clippy::complexity -W clippy::perf -W clippy::style -W clippy::pedantic
+    - typos
+
+pre-push:
+  commands:
+    - cargo build -q
+    - test-suite: cargo test -q
+```
+
+Benefits of named commands:
+- **Better readability**: Long commands show their purpose clearly
+- **Improved monitoring**: Performance reports display meaningful names instead of truncated commands
+- **Enhanced dry-run output**: See at a glance what each command does
+
+When you use named commands, both the dry-run output and performance monitoring will display the command name followed by the actual command in parentheses.
+
 ### Common Commands
 
 ```bash
@@ -185,7 +209,7 @@ hooksmith run pre-commit --profile
 ```
 
 This will show you:
-- Individual command execution times
+- Individual command execution times (showing command names when available)
 - Total hook execution time
 - Overall execution time when running multiple hooks
 
@@ -195,7 +219,7 @@ This will show you:
 ⏱️  Hook execution summary:
   Hook 'pre-commit' (768ms)
     cargo fmt --all -- --check: 146ms
-    cargo clippy --workspace --release --all-targets --all-fe...: 394ms
+    clippy-linter: 394ms
     typos: 226ms
   Total: 768ms
 ```
