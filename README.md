@@ -1,4 +1,4 @@
-# 🪝 Hooksmith
+# Hooksmith
 
 <pre align="center">
                 ,"(                             .
@@ -26,33 +26,33 @@ __________;"o,-------------......"""""`'-._/(
 
 **Hooksmith** is a lightweight, easy-to-use tool that simplifies Git hook management. Define your hooks in a simple YAML file and let Hooksmith handle the rest.
 
-## 📋 Table of Contents
+## Table of Contents
 
-- [✨ Features](#-features)
-- [⚡ Why Hooksmith?](#-why-hooksmith)
-- [🔧 Installation](#-installation)
-- [🚀 Quick Start](#-quick-start)
-- [📖 Usage](#-usage)
-- [⏱️ Performance Monitoring](#️-performance-monitoring)
-- [🗂️ Path-based Blocks](#-path-based-blocks)
-- [📚 Command Reference](#-command-reference)
-- [🤝 Contributing](#-contributing)
-- [📄 License](#-license)
+- [Features](#features)
+- [Why Hooksmith?](#why-hooksmith)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Usage](#usage)
+- [Performance Monitoring](#performance-monitoring)
+- [Path-based Blocks](#path-based-blocks)
+- [Command Reference](#command-reference)
+- [Contributing](#contributing)
+- [License](#license)
 
-## ✨ Features
+## Features
 
-- **⚙️ Automatic Installation** - Set up hooks through your build scripts with `build.rs`
-- **🧪 Local Testing** - Run hooks manually without triggering Git events
-- **⏱️ Performance Monitoring** - Track execution times for hooks and individual commands
-- **🔍 Dry Run Mode** - Preview what would happen without making changes
-- **✅ Hook Validation** - Ensure your hooks comply with Git standards
-- **📝 Simple Configuration** - Define all your hooks in a clean YAML format
-- **🎨 Beautiful CLI** - Enjoy a polished terminal interface with clear output
-- **🐟 Shell Completion** - Built-in Fish shell completions for improved productivity
-- **🔄 Version Control** - Easily track hook changes with your repository
-- **🚦 Error Handling** - Robust error handling with clear, actionable messages
+- **Automatic Installation** - Set up hooks through your build scripts with `build.rs`
+- **Local Testing** - Run hooks manually without triggering Git events
+- **Performance Monitoring** - Track execution times for hooks and individual commands
+- **Dry Run Mode** - Preview what would happen without making changes
+- **Hook Validation** - Ensure your hooks comply with Git standards
+- **Simple Configuration** - Define all your hooks in a clean YAML format
+- **Step Progress** - See which hook and command is running at each step
+- **Shell Completion** - Built-in Fish shell completions for improved productivity
+- **Version Control** - Easily track hook changes with your repository
+- **Error Handling** - Robust error handling with clear, actionable messages
 
-## ⚡ Why Hooksmith?
+## Why Hooksmith?
 
 - **Minimal Dependencies** - Lightweight with only essential dependencies
 - **Rust Powered** - Fast, reliable, and type-safe
@@ -60,7 +60,7 @@ __________;"o,-------------......"""""`'-._/(
 - **Seamless Integration** - Works naturally with your Git workflow
 - **Low Learning Curve** - Simple commands and clear documentation
 
-## 🔧 Installation
+## Installation
 
 ### Using Cargo
 
@@ -74,7 +74,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [build-dependencies]
-hooksmith = "1.10.0"
+hooksmith = "1.16.0"
 ```
 
 Create a `build.rs` file:
@@ -88,7 +88,7 @@ fn main() {
 }
 ```
 
-> 💡 **Note**: Hooksmith includes shell completions for Fish. After installation, they become available automatically.
+> **Note**: Hooksmith includes shell completions for Fish. After installation, they become available automatically.
 
 ### Dependencies
 
@@ -98,7 +98,7 @@ Hooksmith is built with minimal but powerful dependencies:
 - `serde` & `serde_yaml`: For YAML configuration handling
 - `thiserror`: For ergonomic error handling
 
-## 🚀 Quick Start
+## Quick Start
 
 1. Create a `hooksmith.yaml` file in your project root:
 
@@ -121,7 +121,7 @@ hooksmith install
 
 That's it! Your Git hooks are now ready to use.
 
-## 📖 Usage
+## Usage
 
 ### Configuration File
 
@@ -200,7 +200,7 @@ Add `--dry-run` to any command to preview changes without applying them:
 hooksmith install --dry-run
 ```
 
-## ⏱️ Performance Monitoring
+## Performance Monitoring
 
 Hooksmith includes built-in performance monitoring to help you optimize your hook execution times. Use the `--profile` flag with the `run` command to see detailed timing information:
 
@@ -215,8 +215,24 @@ This will show you:
 
 ### Example Output
 
+When running hooks, Hooksmith shows step-by-step progress:
+
 ```
-⏱️  Hook execution summary:
+running `pre-commit`, 1/1 steps:
+  running `cargo fmt --all -- --check` 1/3
+  running `clippy-linter` 2/3
+  running `typos` 3/3
+```
+
+With `--profile`, a timing summary is appended:
+
+```
+running `pre-commit`, 1/1 steps:
+  running `cargo fmt --all -- --check` 1/3
+  running `clippy-linter` 2/3
+  running `typos` 3/3
+
+Hook execution summary:
   Hook 'pre-commit' (768ms)
     cargo fmt --all -- --check: 146ms
     clippy-linter: 394ms
@@ -232,7 +248,7 @@ Performance monitoring is particularly useful for:
 - **Debugging performance issues** in complex hook configurations
 - **Tracking improvements** after optimizing your toolchain
 
-## 🗂️ Path-based Blocks
+## Path-based Blocks
 
 Define commands that only run when files within specific paths have changed. This lets you scope expensive checks to the parts of the repository they affect.
 
@@ -268,7 +284,7 @@ pre-commit:
 - **No matches**: If no paths match, only global commands run. Omit `commands` if you want nothing to run in that case.
 - **Multiple matches**: If a file matches several prefixes, all matching blocks run. The order between blocks is not guaranteed; the order of commands within a block is preserved.
 
-## 📚 Command Reference
+## Command Reference
 
 | Command | Description |
 |---------|-------------|
@@ -295,7 +311,7 @@ pre-commit:
 | `--interactive` or `-i` | Interactively select hooks to run |
 | `--profile` or `-p` | Show performance timing for hook execution |
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Feel free to:
 
@@ -304,7 +320,7 @@ Contributions are welcome! Feel free to:
 - Improve documentation
 - Share your use cases and feedback
 
-## 📄 License
+## License
 
 This project is dual-licensed under either:
 

@@ -607,6 +607,13 @@ impl Hooksmith {
             self.install_hook(hook_name)?;
         }
 
+        if !self.dry_run {
+            println!(
+                "Installed {} hook(s) successfully.",
+                self.config.hooks.len()
+            );
+        }
+
         Ok(())
     }
 
@@ -696,8 +703,15 @@ impl Hooksmith {
     pub fn run_hooks_with_timing(&self, hook_names: &[String]) -> Result<()> {
         let start_time = Instant::now();
         let mut hook_timings = Vec::new();
+        let total_hooks = hook_names.len();
 
-        for hook_name in hook_names {
+        for (hook_idx, hook_name) in hook_names.iter().enumerate() {
+            if true {
+                println!(
+                    "running `{hook_name}`, {}/{total_hooks} steps:",
+                    hook_idx + 1
+                );
+            }
             let hook_start = Instant::now();
             let hook_timing = self.run_hook_internal_with_timing(hook_name)?;
             let hook_duration = hook_start.elapsed();
@@ -728,7 +742,14 @@ impl Hooksmith {
     /// * If a command cannot be executed
     /// * If any hook is not found in the configuration
     pub fn run_hooks(&self, hook_names: &[String]) -> Result<()> {
-        for hook_name in hook_names {
+        let total_hooks = hook_names.len();
+        for (hook_idx, hook_name) in hook_names.iter().enumerate() {
+            if true {
+                println!(
+                    "running `{hook_name}`, {}/{total_hooks} steps:",
+                    hook_idx + 1
+                );
+            }
             self.run_hook_internal(hook_name)?;
         }
         Ok(())
@@ -836,7 +857,14 @@ impl Hooksmith {
         }
 
         let working_directory = working_directory_override.map(Path::new);
-        for hook_command in commands {
+        for (idx, hook_command) in commands.iter().enumerate() {
+            if true {
+                let display = hook_command
+                    .name
+                    .as_deref()
+                    .unwrap_or(&hook_command.command);
+                println!("  running `{display}` {}/{total_commands}", idx + 1);
+            }
             self.execute_single_command(hook_command, hook_name, working_directory);
         }
 
@@ -877,7 +905,14 @@ impl Hooksmith {
         }
 
         let working_directory = working_directory_override.map(Path::new);
-        for hook_command in commands {
+        for (idx, hook_command) in commands.iter().enumerate() {
+            if true {
+                let display = hook_command
+                    .name
+                    .as_deref()
+                    .unwrap_or(&hook_command.command);
+                println!("  running `{display}` {}/{total_commands}", idx + 1);
+            }
             let start_time = Instant::now();
             self.execute_single_command(hook_command, hook_name, working_directory);
             let duration = start_time.elapsed();
