@@ -820,7 +820,7 @@ impl Hooksmith {
         let total_commands = command_timings.len();
 
         if self.dry_run {
-            println!("🏁 Dry run completed. {total_commands} command(s) would be executed",);
+            println!("🏁 Dry run completed. {total_commands} command(s) would be executed");
         }
 
         Ok(HookTiming {

@@ -1,0 +1,35 @@
+# The CI on Forgejo (git.tomplanche.com). Forgejo reads .forgejo/workflows and
+# ignores .github/workflows, so the GitHub workflows (releases, dependency
+# updates) do not run here. The runner of Forgejo has Linux only.
+#
+# This file runs the jobs of .github/workflows/rust.yaml. Keep the commands in
+# sync with rust.yaml. One difference: `ubuntu-latest` on Forgejo is a Debian
+# container without Rust, so this file installs the toolchain first. The cache
+# is Swatinem/rust-cache, which works with the cache of the Forgejo runner.
+name: Rust
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions: read-all
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache cargo registry & build
+        uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: cargo build --verbose
+      - name: Run tests
+        run: cargo test --verbose
